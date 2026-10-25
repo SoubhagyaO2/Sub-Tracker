@@ -1,0 +1,134 @@
+import { z } from 'zod';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user?: string;
+  pass?: string;
+  from: string;
+}
+
+export interface Config {
+  env: 'development' | 'test' | 'production';
+  isProd: boolean;
+  port: number;
+  databaseUrl: string;
+  corsOrigins: string[];
+  appUrl: string;
+  trustProxy: boolean | number;
+  logLevel: string;
+  /** null => email is disabled; features depending on it report "unavailable". */
+  smtp: SmtpConfig | null;
+  session: {
+    cookieName: string;
+    idleMs: number;
+    absoluteMs: number;
+    /** last_seen is refreshed at most this often, to limit writes. */
+    touchIntervalMs: number;
+  };
+  emailVerification: { tokenTtlMs: number; resendCooldownMs: number };
+  rateLimit: {
+    authWindowMs: number;
+    authMax: number;
+    loginPerEmailMax: number;
+    apiWindowMs: number;
+    apiMax: number;
+  };
+}
+
+const EnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3001),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  CORS_ORIGINS: z.string().default(''),
+  APP_URL: z.string().default('http://localhost:5173'),
+  TRUST_PROXY: z.string().default('false'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+  SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+});
+
+function dropEmpty(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== ''));
+}
+
+export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
+  const parsed = EnvSchema.safeParse(dropEmpty(rawEnv));
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    throw new Error(`Invalid environment configuration: ${msg}`);
+  }
+  const e = parsed.data;
+  const isProd = e.NODE_ENV === 'production';
+
+  const corsOrigins = e.CORS_ORIGINS.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const o of corsOrigins) {
+    if (o === '*' || !/^https?:\/\/[^/]+$/.test(o)) {
+      throw new Error(`Invalid CORS origin "${o}": use explicit origins like https://app.example.com`);
+    }
+  }
+  if (isProd && corsOrigins.length === 0) {
+    throw new Error('CORS_ORIGINS must be set in production');
+  }
+  if (isProd && !e.APP_URL.startsWith('https://')) {
+    throw new Error('APP_URL must be https in production');
+  }
+
+  const smtpSet = [e.SMTP_HOST, e.SMTP_PORT, e.SMTP_FROM].filter((v) => v !== undefined).length;
+  if (smtpSet !== 0 && smtpSet !== 3) {
+    throw new Error('SMTP is partially configured: SMTP_HOST, SMTP_PORT and SMTP_FROM must all be set (or none)');
+  }
+  const smtp: SmtpConfig | null =
+    smtpSet === 3
+      ? {
+          host: e.SMTP_HOST!,
+          port: e.SMTP_PORT!,
+          secure: e.SMTP_SECURE === 'true',
+          user: e.SMTP_USER,
+          pass: e.SMTP_PASS,
+          from: e.SMTP_FROM!,
+        }
+      : null;
+
+  const trustProxy =
+    e.TRUST_PROXY === 'true' ? true : e.TRUST_PROXY === 'false' ? false : Number(e.TRUST_PROXY);
+  if (typeof trustProxy === 'number' && (!Number.isInteger(trustProxy) || trustProxy < 0)) {
+    throw new Error('TRUST_PROXY must be "true", "false" or a non-negative integer');
+  }
+
+  return {
+    env: e.NODE_ENV,
+    isProd,
+    port: e.PORT,
+    databaseUrl: e.DATABASE_URL,
+    corsOrigins,
+    appUrl: e.APP_URL.replace(/\/$/, ''),
+    trustProxy,
+    logLevel: e.LOG_LEVEL,
+    smtp,
+    session: {
+      // The __Host- prefix requires Secure + Path=/ + no Domain, so it is only used in production (https).
+      cookieName: isProd ? '__Host-sc_sid' : 'sc_sid',
+      idleMs: 14 * DAY_MS,
+      absoluteMs: 30 * DAY_MS,
+      touchIntervalMs: 5 * 60 * 1000,
+    },
+    emailVerification: { tokenTtlMs: DAY_MS, resendCooldownMs: 60 * 1000 },
+    rateLimit: {
+      authWindowMs: 15 * 60 * 1000,
+      authMax: 10,
+      loginPerEmailMax: 10,
+      apiWindowMs: 60 * 1000,
+      apiMax: 300,
+    },
+  };
+}

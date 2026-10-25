@@ -1,0 +1,153 @@
+@import 'tailwindcss';
+
+/*
+ * SubCycle design tokens (docs/DESIGN_SYSTEM.md). Every foreground/background pair used for text was
+ * contrast-checked against WCAG AA in Stage 2. Dark is the designed-first theme; light mirrors the roles.
+ */
+:root,
+:root[data-theme='dark'] {
+  --canvas: #111310;
+  --surface: #20231d;
+  --raised: #292d25;
+  --line: #363b31;
+  --line-strong: #6b7566;
+  --fg: #f3f4ee;
+  --muted: #a3ab9c;
+  --subtle: #8a9384;
+  --accent: #c4e66a;
+  --accent-fg: #111310;
+  --accent-text: #c4e66a;
+  --accent-soft: rgb(196 230 106 / 0.14);
+  --danger: #f2877e;
+  --danger-soft: #2b1f1d;
+  --warn: #e9c46a;
+  --warn-soft: #2d2818;
+  --info: #7fb7e6;
+  --info-soft: #1c2630;
+  --focus: #c4e66a;
+  --scrim: rgb(0 0 0 / 0.62);
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.45);
+  --cat-1: #c4e66a;
+  --cat-2: #7fb7e6;
+  --cat-3: #e9a46a;
+  --cat-4: #b69cf0;
+  --cat-5: #6fd3c0;
+  --cat-6: #f28db2;
+  --cat-7: #8e9788;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --canvas: #f6f7f2;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --line: #e1e4da;
+  --line-strong: #8a9384;
+  --fg: #161912;
+  --muted: #5b6455;
+  --subtle: #6b7566;
+  --accent: #c4e66a;
+  --accent-fg: #111310;
+  --accent-text: #3f5f0a;
+  --accent-soft: rgb(63 95 10 / 0.1);
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+  --warn: #8a5a00;
+  --warn-soft: #fbf1d8;
+  --info: #1d5a8f;
+  --info-soft: #e5f0fa;
+  --focus: #3f5f0a;
+  --scrim: rgb(22 25 18 / 0.45);
+  --shadow-pop: 0 8px 24px rgb(22 25 18 / 0.12);
+  --cat-1: #4e7a0b;
+  --cat-2: #1f6fb2;
+  --cat-3: #b25e12;
+  --cat-4: #6b4fc4;
+  --cat-5: #0f7f70;
+  --cat-6: #b8346b;
+  --cat-7: #5b6455;
+  color-scheme: light;
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --radius-control: 0.75rem;
+  --radius-card: 1.25rem;
+  --radius-dialog: 1.5rem;
+  --shadow-pop: var(--shadow-pop);
+}
+
+@layer base {
+  html {
+    background: var(--canvas);
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-canvas font-sans text-[0.9375rem] leading-normal text-fg antialiased;
+    margin: 0;
+    min-width: 320px;
+    overflow-x: hidden;
+  }
+  h1, h2, h3 {
+    @apply font-semibold tracking-tight;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+  a {
+    @apply text-accent-text underline-offset-2;
+  }
+  ::placeholder {
+    color: var(--subtle);
+    opacity: 1;
+  }
+  /* Native controls follow the theme (date pickers, selects, scrollbars). */
+  select, input, textarea { color-scheme: inherit; }
+}
+
+@layer utilities {
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  .skeleton {
+    @apply rounded-control bg-raised;
+    animation: sc-pulse 1.4s ease-in-out infinite;
+  }
+  .scroll-lock {
+    overflow: hidden;
+  }
+}
+
+@keyframes sc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
