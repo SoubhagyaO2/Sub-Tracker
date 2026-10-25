@@ -20,6 +20,10 @@ interface AuthContextValue {
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   retry: () => void;
+  /** Re-reads the session (e.g. after verifying an email address). Quiet: never shows the loading screen. */
+  refresh: () => Promise<void>;
+  /** Replaces the preferences held in memory after a successful save. */
+  setPreferences: (p: PreferencesDto) => void;
 }
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -65,7 +69,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  const value = useMemo(() => ({ state, login, register, logout, retry }), [state, login, register, logout, retry]);
+  const refresh = useCallback(async () => {
+    try {
+      setState(authed(await authApi.me()));
+    } catch {
+      /* keep what we have: a failed refresh must not sign anyone out */
+    }
+  }, []);
+  const setPreferences = useCallback((preferences: PreferencesDto) => setState((s) => (s.status === 'authed' ? { ...s, preferences } : s)), []);
+
+  const value = useMemo(
+    () => ({ state, login, register, logout, retry, refresh, setPreferences }),
+    [state, login, register, logout, retry, refresh, setPreferences],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

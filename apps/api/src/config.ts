@@ -1,3 +1,4 @@
+import { MAX_REMINDER_ATTEMPTS, RETRY_BACKOFF_MINUTES } from '@subcycle/shared';
 import { z } from 'zod';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -30,6 +31,17 @@ export interface Config {
     touchIntervalMs: number;
   };
   emailVerification: { tokenTtlMs: number; resendCooldownMs: number };
+  scheduler: {
+    /** Run the background scheduler inside this API process. Set false to run the API without it (e.g. a dedicated worker elsewhere). */
+    enabled: boolean;
+    intervalMs: number;
+    /** A claimed reminder is invisible to other workers for this long; if the claimer dies it becomes due again afterwards. */
+    leaseMs: number;
+    claimBatch: number;
+    maxAttempts: number;
+    /** Minutes to wait after the Nth failed attempt (index N-1). */
+    backoffMinutes: readonly number[];
+  };
   rateLimit: {
     authWindowMs: number;
     authMax: number;
@@ -53,6 +65,8 @@ const EnvSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  SCHEDULER_ENABLED: z.enum(['true', 'false']).default('true'),
+  SCHEDULER_INTERVAL_SECONDS: z.coerce.number().int().min(30).max(3600).default(300),
 });
 
 function dropEmpty(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -123,6 +137,14 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
       touchIntervalMs: 5 * 60 * 1000,
     },
     emailVerification: { tokenTtlMs: DAY_MS, resendCooldownMs: 60 * 1000 },
+    scheduler: {
+      enabled: e.SCHEDULER_ENABLED === 'true',
+      intervalMs: e.SCHEDULER_INTERVAL_SECONDS * 1000,
+      leaseMs: 10 * 60 * 1000,
+      claimBatch: 50,
+      maxAttempts: MAX_REMINDER_ATTEMPTS,
+      backoffMinutes: RETRY_BACKOFF_MINUTES,
+    },
     rateLimit: {
       authWindowMs: 15 * 60 * 1000,
       authMax: 10,

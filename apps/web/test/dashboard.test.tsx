@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { deferred, fail, freezeTime, makePayment, makeSub, page, renderApp, signedInServer } from './helpers';
+import { deferred, fail, freezeTime, makeAnalytics, makePayment, makeSub, ok, page, renderApp, signedInServer } from './helpers';
 
 beforeEach(() => freezeTime());
 afterEach(() => {
@@ -13,11 +13,12 @@ const card = (name: RegExp | string) => {
   return within(heading.closest('section')!);
 };
 
-/** Server with the given subscriptions and a payments endpoint keyed by subscription id. */
+/** Server with the given subscriptions; recorded payments (any subscription) are served by the analytics endpoint. */
 function serverWith(subs: ReturnType<typeof makeSub>[], payments: Record<string, ReturnType<typeof makePayment>[]> = {}) {
+  const flat = Object.values(payments).flat();
   return signedInServer()
     .on('GET', '/api/subscriptions', page(subs, subs.length, 1, 100))
-    .on('GET', '/api/subscriptions/:id/payments', (_req, p) => page(payments[p.id!] ?? [], (payments[p.id!] ?? []).length, 1, 100));
+    .on('GET', '/api/analytics/spending', ok(makeAnalytics(flat)));
 }
 
 describe('dashboard states', () => {
@@ -55,7 +56,7 @@ describe('dashboard states', () => {
   });
 
   it('a payments failure is contained to the payments cards: the rest of the dashboard still works', async () => {
-    serverWith([makeSub()]).on('GET', '/api/subscriptions/:id/payments', fail(500, 'INTERNAL_ERROR', 'Payments are unavailable.'));
+    serverWith([makeSub()]).on('GET', '/api/analytics/spending', fail(500, 'INTERNAL_ERROR', 'Payments are unavailable.'));
     renderApp('/');
     await screen.findByText('Monthly equivalent');
     expect(await screen.findByText('We couldn’t load your payments')).toBeInTheDocument();
@@ -124,7 +125,7 @@ describe('estimates, projections and recorded payments are kept apart and labell
     expect(card('Monthly equivalent').getByText(/768\.00/)).toBeInTheDocument();
   });
 
-  it('payments of ARCHIVED subscriptions still count as history: all statuses are requested', async () => {
+  it('payments of ARCHIVED subscriptions still count as history: one analytics request, no per-subscription payment calls', async () => {
     const archived = makeSub({ id: 'z', name: 'Old', status: 'archived', effectiveNextBillingDate: null });
     const server = serverWith([...subs, archived], { z: [makePayment({ subscriptionId: 'z', paidOn: '2030-01-05', amountMinor: 30000 })] });
     renderApp('/');
@@ -132,7 +133,8 @@ describe('estimates, projections and recorded payments are kept apart and labell
     const call = server.to('GET', '/api/subscriptions')[0]!;
     expect(call.query.get('status')).toBe('active,trial,paused,cancelled,archived');
     expect(call.query.get('pageSize')).toBe('100');
-    expect(server.to('GET', '/api/subscriptions/z/payments')).toHaveLength(1);
+    expect(server.to('GET', '/api/analytics/spending')).toHaveLength(1);
+    expect(server.to('GET', /\/payments$/)).toHaveLength(0);
   });
 
   it('only active subscriptions count in totals; paused, trial and archived are excluded and explained', async () => {
@@ -277,8 +279,8 @@ describe('request shape', () => {
     const server = serverWith([makeSub({ id: 'a' })]);
     renderApp('/');
     await screen.findByText('Monthly equivalent');
-    await waitFor(() => expect(server.to('GET', '/api/subscriptions/a/payments').length).toBe(1));
-    const documented = [/^\/api\/auth\/me$/, /^\/api\/subscriptions$/, /^\/api\/subscriptions\/[^/]+\/payments$/];
+    await waitFor(() => expect(server.to('GET', '/api/analytics/spending').length).toBe(1));
+    const documented = [/^\/api\/auth\/me$/, /^\/api\/subscriptions$/, /^\/api\/analytics\/spending$/, /^\/api\/reminders$/];
     for (const c of server.calls) {
       expect(c.method).toBe('GET');
       expect(documented.some((re) => re.test(c.path)), c.path).toBe(true);

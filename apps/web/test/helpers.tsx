@@ -6,8 +6,13 @@ import {
   allowedActions,
   effectiveNextBillingDate,
   monthlyEquivalentMinor,
+  type AnalyticsResponse,
+  type EstimateCategory,
+  type EstimateTop,
   type PaymentDto,
   type PriceChangeDto,
+  type RecordedCurrency,
+  type ReminderDto,
   type SessionPayload,
   type SubscriptionDto,
 } from '@subcycle/shared';
@@ -53,6 +58,28 @@ export function makePayment(over: Partial<PaymentDto> = {}): PaymentDto {
   return {
     id: `p${++seq}`, subscriptionId: 's1', amountMinor: 64900, currency: 'INR', paidOn: '2030-01-10', status: 'paid',
     forBillingDate: null, note: null, source: 'user_entered', createdAt: '2030-01-10T08:00:00.000Z', ...over,
+  };
+}
+
+/** Estimate fixtures with the full server shape (yearly = 12 x monthly for these monthly subscriptions). */
+export const estCategory = (category: EstimateCategory['category'], monthlyEquivalentMinor: number, percent: number, subscriptionCount = 1): EstimateCategory =>
+  ({ category, monthlyEquivalentMinor, annualizedMinor: monthlyEquivalentMinor * 12, percent, subscriptionCount });
+export const estTop = (subscriptionId: string, name: string, monthlyEquivalentMinor: number, category: EstimateTop['category'] = 'video'): EstimateTop =>
+  ({ subscriptionId, name, category, billingFrequency: 'monthly', amountMinor: monthlyEquivalentMinor, monthlyEquivalentMinor });
+
+export function makeReminder(over: Partial<ReminderDto> = {}): ReminderDto {
+  return {
+    id: `r${++seq}`, subscriptionId: 's1', subscriptionName: 'Netflix', kind: 'renewal', channel: 'in_app', targetDate: '2030-01-20', leadDays: 3,
+    remindAt: '2030-01-17T03:30:00.000Z', status: 'sent', skipReason: null, attempts: 1, sentAt: '2030-01-17T03:31:00.000Z', readAt: null, lastError: null, ...over,
+  };
+}
+
+/** A session where email reminders could work (provider configured), verified or not. */
+export function emailSession(verified: boolean, prefs: Partial<SessionPayload['preferences']> = {}): SessionPayload {
+  return {
+    user: { ...SESSION.user, emailVerified: verified },
+    preferences: { ...SESSION.preferences, ...prefs },
+    features: { emailVerificationAvailable: true },
   };
 }
 
@@ -145,11 +172,55 @@ export class FakeServer {
   }
 }
 
+/**
+ * Builds a GET /api/analytics/spending body the way the server would: recorded = paid minus refunded
+ * per currency and month, failed counted separately, newest-first recent payments. Estimate/projection are empty
+ * unless given (the dashboard computes those from the subscriptions list).
+ */
+export function makeAnalytics(
+  payments: (PaymentDto & { subscriptionName?: string })[] = [],
+  over: Partial<AnalyticsResponse> = {},
+): AnalyticsResponse {
+  const byCurrency = new Map<string, RecordedCurrency>();
+  for (const p of payments) {
+    const cur = byCurrency.get(p.currency) ?? { currency: p.currency, paidMinor: 0, refundedMinor: 0, netMinor: 0, paymentCount: 0, failedCount: 0, buckets: [] };
+    byCurrency.set(p.currency, cur);
+    if (p.status === 'failed') { cur.failedCount++; continue; }
+    const start = `${p.paidOn.slice(0, 7)}-01`;
+    let b = cur.buckets.find((x) => x.start === start);
+    if (!b) { b = { start, paidMinor: 0, refundedMinor: 0, netMinor: 0, paymentCount: 0 }; cur.buckets.push(b); }
+    const refunded = p.status === 'refunded';
+    for (const t of [b, cur]) {
+      if (refunded) t.refundedMinor += p.amountMinor; else t.paidMinor += p.amountMinor;
+      t.netMinor = t.paidMinor - t.refundedMinor;
+      t.paymentCount++;
+    }
+  }
+  for (const c of byCurrency.values()) c.buckets.sort((a, b) => a.start.localeCompare(b.start));
+  const recentPayments = [...payments]
+    .sort((a, b) => b.paidOn.localeCompare(a.paidOn) || b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 5)
+    .map((p) => ({
+      paymentId: p.id, subscriptionId: p.subscriptionId, subscriptionName: p.subscriptionName ?? 'Netflix', amountMinor: p.amountMinor,
+      currency: p.currency, paidOn: p.paidOn, status: p.status, createdAt: p.createdAt,
+    }));
+  return {
+    timeZone: 'Asia/Kolkata',
+    today: TODAY,
+    estimate: { kind: 'estimate', asOf: TODAY, currencies: [] },
+    recorded: { kind: 'recorded', from: '2029-02-01', to: TODAY, bucket: 'month', currencies: [...byCurrency.values()], recentPayments },
+    projection: { kind: 'projection', windows: [] },
+    ...over,
+  };
+}
+
 /** A server where the user is signed in and every list is empty; tests override what they care about. */
 export function signedInServer(): FakeServer {
   return new FakeServer()
     .on('GET', '/api/auth/me', ok(SESSION))
     .on('GET', '/api/subscriptions', page([]))
+    .on('GET', '/api/analytics/spending', () => ok(makeAnalytics()))
+    .on('GET', '/api/reminders', ok([], { page: 1, pageSize: 25, total: 0, unread: 0 }))
     .install();
 }
 

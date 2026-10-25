@@ -1,24 +1,33 @@
 import { useState } from 'react';
 import type { Category } from '@subcycle/shared';
-import type { CategoryShare, MonthTotal } from '../lib/dashboard';
-import { formatMonth, formatMonthShort } from '../lib/dates';
+import type { CategoryShare } from '../lib/dashboard';
 import { CATEGORY_LABEL, CATEGORY_SLOT } from '../lib/labels';
 import { moneyText } from '../lib/money';
 import { Money } from './ui/display';
 
+export interface BarDatum {
+  key: string;
+  /** Full label for tables, tooltips and the text summary. */
+  label: string;
+  /** Compact label under the bar. */
+  short: string;
+  netMinor: number;
+}
+
 /**
- * Monthly bars with a text summary (role="img") and a table alternative, so the numbers are available
- * without relying on sight or colour. Bars start at zero; a month without records is an honest zero.
+ * Bars (monthly or weekly) with a text summary (role="img") and a table alternative, so the numbers are available
+ * without relying on sight or colour. Bars start at zero; a bucket without records is an honest zero.
  */
-export function MonthlyBars({ data, currency, subject }: { data: MonthTotal[]; currency: string; subject: string }) {
+export function BucketBars({ data, currency, subject, unit }: { data: BarDatum[]; currency: string; subject: string; unit: 'month' | 'week' }) {
   const [asTable, setAsTable] = useState(false);
   const max = Math.max(1, ...data.map((d) => d.netMinor));
   const total = data.reduce((n, d) => n + d.netMinor, 0);
   const peak = data.reduce((best, d) => (d.netMinor > best.netMinor ? d : best), data[0]!);
   const summary =
     total === 0 && peak.netMinor === 0
-      ? `${subject}: nothing recorded in these ${data.length} months.`
-      : `${subject}, last ${data.length} months in ${currency}: ${moneyText(total, currency)} in total; highest month ${formatMonth(peak.month)} at ${moneyText(peak.netMinor, currency)}.`;
+      ? `${subject}: nothing recorded in these ${data.length} ${unit}s.`
+      : `${subject}, ${data.length} ${unit}s in ${currency}: ${moneyText(total, currency)} in total; highest ${unit} ${peak.label} at ${moneyText(peak.netMinor, currency)}.`;
+  const every = data.length > 16 ? 4 : data.length > 8 ? 2 : 1; // thin the labels so they never collide
 
   return (
     <div>
@@ -32,14 +41,14 @@ export function MonthlyBars({ data, currency, subject }: { data: MonthTotal[]; c
           <caption className="sr-only">{summary}</caption>
           <thead>
             <tr className="text-left text-muted">
-              <th scope="col" className="py-1 font-medium">Month</th>
+              <th scope="col" className="py-1 font-medium">{unit === 'week' ? 'Week starting' : 'Month'}</th>
               <th scope="col" className="py-1 text-right font-medium">Recorded ({currency})</th>
             </tr>
           </thead>
           <tbody>
             {data.map((d) => (
-              <tr key={d.month} className="border-t border-line">
-                <th scope="row" className="py-1.5 text-left font-normal">{formatMonth(d.month)}</th>
+              <tr key={d.key} className="border-t border-line">
+                <th scope="row" className="py-1.5 text-left font-normal">{d.label}</th>
                 <td className="py-1.5 text-right"><Money minor={d.netMinor} currency={currency} /></td>
               </tr>
             ))}
@@ -49,7 +58,7 @@ export function MonthlyBars({ data, currency, subject }: { data: MonthTotal[]; c
         <div role="img" aria-label={summary}>
           <div className="flex h-40 items-end gap-1 border-b border-line" aria-hidden="true">
             {data.map((d) => (
-              <div key={d.month} className="flex h-full min-w-0 flex-1 flex-col justify-end" title={`${formatMonth(d.month)}: ${moneyText(d.netMinor, currency)}`}>
+              <div key={d.key} className="flex h-full min-w-0 flex-1 flex-col justify-end" title={`${d.label}: ${moneyText(d.netMinor, currency)}`}>
                 <div
                   className={d.netMinor < 0 ? 'rounded-t bg-danger' : 'rounded-t bg-accent-text'}
                   style={{ height: d.netMinor === 0 ? 0 : `${Math.max(3, (Math.max(0, d.netMinor) / max) * 100)}%`, minHeight: d.netMinor < 0 ? 3 : undefined }}
@@ -59,8 +68,8 @@ export function MonthlyBars({ data, currency, subject }: { data: MonthTotal[]; c
           </div>
           <div className="mt-1 flex gap-1" aria-hidden="true">
             {data.map((d, i) => (
-              <span key={d.month} className={`min-w-0 flex-1 truncate text-center text-xs text-muted ${(data.length - 1 - i) % 2 === 1 ? 'hidden sm:block' : ''}`}>
-                {formatMonthShort(d.month)}
+              <span key={d.key} className={`min-w-0 flex-1 truncate text-center text-xs text-muted ${(data.length - 1 - i) % every === 0 ? '' : 'invisible'}`}>
+                {d.short}
               </span>
             ))}
           </div>

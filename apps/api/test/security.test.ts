@@ -148,6 +148,8 @@ describe('SQL safety guard', () => {
    */
   const ALLOWED_INTERPOLATIONS: Record<string, string[]> = {
     'services/subscriptions.ts': ['whereSql', 'SORT_SQL[sort]', 'dir', 'limit', 'offset'],
+    // SELECT is a fixed constant statement prefix; whereSql is AND-joined literals with bound values; limit/offset are $n placeholders.
+    'services/reminders.ts': ['SELECT', 'whereSql', 'limit', 'offset'],
   };
 
   const srcDir = path.resolve(import.meta.dirname, '../src');

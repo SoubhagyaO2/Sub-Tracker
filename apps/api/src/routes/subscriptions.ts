@@ -24,7 +24,7 @@ import {
   transitionSubscription,
   updateSubscription,
 } from '../services/subscriptions.js';
-import { todayInZone } from '../today.js';
+import { todayForUser } from '../today.js';
 
 /**
  * All routes require a session. The owner is ALWAYS req.auth.userId (from the session cookie);
@@ -37,7 +37,7 @@ export function subscriptionsRouter(deps: AppDeps): Router {
 
   async function context(userId: string) {
     const prefs = await loadPreferences(pool, userId);
-    return { today: todayInZone(clock, prefs.timezone), defaultCurrency: prefs.currency as CurrencyCode };
+    return { today: todayForUser(clock, prefs.timezone), defaultCurrency: prefs.currency as CurrencyCode };
   }
 
   router.get('/', async (req, res) => {

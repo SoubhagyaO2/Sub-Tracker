@@ -4,17 +4,16 @@ import {
   totalsMinor,
   type Category,
   type DateOnly,
-  type PaymentDto,
   type SubscriptionDto,
 } from '@subcycle/shared';
 import { diffDays } from '@subcycle/shared';
 import { orderCurrencies } from './money';
 
 /**
- * Pure dashboard calculations. Three kinds of numbers are kept strictly apart (and labelled so in the UI):
+ * Pure dashboard calculations. Estimates and projections (RECORDED spending is computed server-side, from payment rows only: GET /api/analytics/spending).
+ * Three kinds of numbers are kept strictly apart (and labelled so in the UI):
  *  - ESTIMATE:   monthly equivalent / category split, from CURRENT prices of ACTIVE subscriptions
  *  - PROJECTION: annualized cost, upcoming renewal totals
- *  - RECORDED:   sums of payment records the user entered; nothing else ever feeds these
  * Currencies are never added together (there is no FX conversion).
  */
 
@@ -96,50 +95,4 @@ export function categoryBreakdown(subs: readonly SubscriptionDto[], currency: st
     })
     .sort((a, b) => b.yearly - a.yearly || a.category.localeCompare(b.category))
     .map(({ yearly: _y, ...rest }) => rest);
-}
-
-export interface RecordedPayment {
-  payment: PaymentDto;
-  subscriptionId: string;
-  subscriptionName: string;
-}
-
-export interface MonthTotal {
-  month: string; // YYYY-MM
-  netMinor: number;
-}
-
-/** The last `months` calendar months ending with today's month, oldest first. */
-export function lastMonths(today: DateOnly, months: number): string[] {
-  const [y, m] = today.split('-').map(Number) as [number, number];
-  return Array.from({ length: months }, (_, i) => {
-    const total = y * 12 + (m - 1) - (months - 1 - i);
-    return `${String(Math.floor(total / 12)).padStart(4, '0')}-${String((total % 12) + 1).padStart(2, '0')}`;
-  });
-}
-
-/**
- * RECORDED spending per month in one currency: paid minus refunded, from payment records only.
- * Failed payments are ignored. Months with no records are 0; nothing is ever back-filled or estimated.
- */
-export function recordedByMonth(payments: readonly RecordedPayment[], currency: string, today: DateOnly, months = 12): MonthTotal[] {
-  const totals = new Map(lastMonths(today, months).map((m) => [m, 0]));
-  for (const { payment } of payments) {
-    if (payment.currency !== currency) continue;
-    const month = payment.paidOn.slice(0, 7);
-    if (!totals.has(month)) continue;
-    if (payment.status === 'paid') totals.set(month, totals.get(month)! + payment.amountMinor);
-    else if (payment.status === 'refunded') totals.set(month, totals.get(month)! - payment.amountMinor);
-  }
-  return [...totals.entries()].map(([month, netMinor]) => ({ month, netMinor }));
-}
-
-export function recordedCurrencies(payments: readonly RecordedPayment[], preferred?: string): string[] {
-  return orderCurrencies(payments.map((p) => p.payment.currency), preferred);
-}
-
-export function recentPayments(payments: readonly RecordedPayment[], limit = 5): RecordedPayment[] {
-  return [...payments]
-    .sort((a, b) => compareDates(b.payment.paidOn, a.payment.paidOn) || b.payment.createdAt.localeCompare(a.payment.createdAt))
-    .slice(0, limit);
 }

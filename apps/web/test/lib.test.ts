@@ -1,13 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, request, setUnauthenticatedHandler } from '../src/api/client';
-import {
-  activeTotals, categoryBreakdown, recentPayments, recordedByMonth, renewalAmounts, upcomingRenewals, lastMonths,
-} from '../src/lib/dashboard';
+import { activeTotals, categoryBreakdown, renewalAmounts, upcomingRenewals } from '../src/lib/dashboard';
 import { formatDate, greetingFor, monthStartBack, relativeDay, todayIn } from '../src/lib/dates';
 import { mapApiError } from '../src/lib/forms';
 import { formatMoney, minorToInput, moneyText, orderCurrencies, parseMoneyInput } from '../src/lib/money';
 import { buildCreatePayload, buildUpdatePayload, emptyValues, valuesFromSubscription } from '../src/lib/subscriptionForm';
-import { FakeServer, TODAY, fail, makePayment, makeSub, ok } from './helpers';
+import { FakeServer, TODAY, fail, makeSub, ok } from './helpers';
 
 describe('parseMoneyInput (exact, no floats)', () => {
   it.each([
@@ -94,7 +92,6 @@ describe('dates are displayed without time-zone shifts', () => {
   it('month helpers', () => {
     expect(monthStartBack('2030-01-15', 11)).toBe('2029-02-01');
     expect(monthStartBack('2030-03-31', 0)).toBe('2030-03-01');
-    expect(lastMonths('2030-01-15', 3)).toEqual(['2029-11', '2029-12', '2030-01']);
   });
 });
 
@@ -162,39 +159,6 @@ describe('dashboard calculations: estimates, projections and recorded are kept a
     const rows = categoryBreakdown(subs, 'INR');
     expect(rows.map((r) => [r.category, r.monthlyEquivalentMinor])).toEqual([['video', 3000], ['music', 2000]]);
     expect(rows.map((r) => Math.round(r.percent))).toEqual([60, 40]);
-  });
-
-  describe('recorded spending comes only from payment records', () => {
-    const rec = (p: Parameters<typeof makePayment>[0]) => ({ payment: makePayment(p), subscriptionId: 's1', subscriptionName: 'Netflix' });
-    it('is paid minus refunded per month, ignores failed, other currencies and months outside the window', () => {
-      const data = recordedByMonth(
-        [
-          rec({ paidOn: '2030-01-10', amountMinor: 64900 }),
-          rec({ paidOn: '2030-01-12', amountMinor: 10000, status: 'refunded' }),
-          rec({ paidOn: '2030-01-13', amountMinor: 99999, status: 'failed' }),
-          rec({ paidOn: '2029-12-05', amountMinor: 20000 }),
-          rec({ paidOn: '2030-01-11', amountMinor: 500, currency: 'USD' }),
-          rec({ paidOn: '2028-01-01', amountMinor: 77777 }), // older than 12 months
-        ],
-        'INR',
-        TODAY,
-      );
-      expect(data).toHaveLength(12);
-      expect(data.at(-1)).toEqual({ month: '2030-01', netMinor: 54900 });
-      expect(data.at(-2)).toEqual({ month: '2029-12', netMinor: 20000 });
-      expect(data.slice(0, 10).every((d) => d.netMinor === 0)).toBe(true);
-    });
-    it('with NO payments every month is an honest zero: nothing is estimated or back-filled', () => {
-      expect(recordedByMonth([], 'INR', TODAY).every((d) => d.netMinor === 0)).toBe(true);
-    });
-    it('recent payments: newest paid date first, then most recently recorded', () => {
-      const r = recentPayments([
-        rec({ id: 'a', paidOn: '2030-01-01', createdAt: '2030-01-01T00:00:00Z' }),
-        rec({ id: 'b', paidOn: '2030-01-09', createdAt: '2030-01-09T01:00:00Z' }),
-        rec({ id: 'c', paidOn: '2030-01-09', createdAt: '2030-01-09T05:00:00Z' }),
-      ]);
-      expect(r.map((x) => x.payment.id)).toEqual(['c', 'b', 'a']);
-    });
   });
 });
 

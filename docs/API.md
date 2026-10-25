@@ -1,4 +1,4 @@
-# SubCycle API reference (implemented so far)
+# SubCycle API reference (implemented so far, through Stage 7)
 
 Conventions are in [SPEC.md §6.1](SPEC.md). This file records the **implemented contracts**; it grows each stage.
 Stage 3: auth (`/api/auth/*`, `/api/account/email-verification*`, `/api/health`; response shapes below). Stage 4: subscriptions. Stage 5: payments, price history, recurrence (all below).
@@ -142,9 +142,47 @@ Records **changes only** (no synthetic initial row), written by `PATCH /subscrip
 Billing dates are computed from the **anchor** (`addMonths(anchor, n)` etc.), never from a previous result, so a 31st anchor yields Feb 28/29, Mar 31, Apr 30, … and a Feb 29 yearly anchor yields Feb 28 in common years and Feb 29 in leap years. The engine is pure (`packages/shared/src/recurrence.ts`) and takes "today" as an argument; the API derives it from the injected clock and the user's time zone.
 
 - **Reads never write.** `effectiveNextBillingDate` is computed on read. Reading one subscription (or a list) cannot modify any row.
-- **Persisted roll-forward** is a background job (`rollForwardStale`, start-up + hourly): moves stale `active` dates to the first occurrence on/after the owner's today, never backwards, anchor unchanged, no payments, optimistic per-row update. Trials, paused, cancelled and archived rows are not touched.
+- **Persisted roll-forward** is a task of the Stage 7 scheduler (`rollForwardStale`, see `docs/OPERATIONS.md`; runs at start-up and every `SCHEDULER_INTERVAL_SECONDS`): moves stale `active` dates to the first occurrence on/after the owner's today, never backwards, anchor unchanged, no payments, optimistic per-row update. Trials, paused, cancelled and archived rows are not touched.
 ### `GET /api/subscriptions/:id/upcoming?count=6` → `200 { data: [{ date, amountMinor, currency }], meta: { kind: "projection", note } }`
 `count` 1–24 (default 6). A **projection** at the current price, not a record of charges. Active: from the upcoming date; trial: only while its end date hasn't passed; paused/cancelled/archived: `[]`. Read-only.
+
+## Calendar (Stage 7)
+### `GET /api/calendar/renewals?from=YYYY-MM-DD&to=YYYY-MM-DD` → `200 { data: Occurrence[], meta }`
+Read-only (never writes), scoped to the session user. Both ends inclusive. Defaults: `from` = the owner's today, `to` = `from` + 29 days. `from` earlier than today is **raised to today** (SubCycle projects forward only; `meta.from` says what was evaluated). A range longer than **366 days** is `422`. At most **1000** occurrences are returned (earliest first); `meta.truncated` is true when more existed and `meta.total` is the full count. Totals include every occurrence, not just the returned ones.
+
+`Occurrence = { date, kind: "renewal" | "trial_end", subscriptionId, name, category, icon, amountMinor, currency, billingFrequency, status }`.
+- `active`: every billing date on the anchor schedule from `max(from, today, saved next date)`; a weekly subscription yields several per range. A renewal already paid ahead (saved next date later) is not shown again.
+- `trial`: one `trial_end` event on the trial end date if it has not passed. It carries no charge.
+- `paused`, `cancelled`, `archived`: nothing.
+
+`meta = { from, to, today, timeZone, kind: "projection", total, truncated, totals: [{ currency, renewalCount, amountMinor }], trialEndCount }`. Totals are per currency and never combined. Everything is a **projection**, not a record that a charge happens.
+
+## Analytics (Stage 7)
+### `GET /api/analytics/spending?from&to&bucket=month|week` → `200 { data }`
+Read-only. `bucket` defaults to `month`; `from` defaults to the first of the month 11 months back; `to` defaults to today and is **clamped to today** (recorded spending cannot be in the future). Ranges are capped (month: 1830 days, week: 372 days) → `422`. Dates are the owner's local calendar dates; buckets start on the 1st (month) or Monday (ISO week); empty buckets are returned as zeros.
+
+`data = { timeZone, today, estimate, recorded, projection }`: three separately labelled sections.
+- **`estimate`** (`kind: "estimate"`): active subscriptions only, current prices, per currency: monthly equivalent, annualized, `byCategory` (exact yearly shares) and the top 5. It is not money paid.
+- **`recorded`** (`kind: "recorded"`): computed from the `payments` table only. Per currency: `paidMinor`, `refundedMinor`, `netMinor` (paid minus refunded), `paymentCount`, `failedCount` (failed payments are counted separately and never added to spend), `buckets[]`. Payments of cancelled/archived subscriptions are included. Also `recentPayments` (5, newest first). A passed renewal date never produces a recorded amount. Not verified against any bank or provider.
+- **`projection`** (`kind: "projection"`): windows of 7, 30 and 90 days from today, per currency `{ renewalCount, amountMinor }` plus `trialEndCount`, using the same occurrence rules as the calendar.
+
+## Reminders (Stage 7)
+### `GET /api/reminders?page&pageSize&channel=in_app|email&status=sent,skipped,...&unread=true` → `200 { data: Reminder[], meta: { page, pageSize, total, unread } }`
+`Reminder = { id, subscriptionId, subscriptionName, kind: "renewal"|"trial_end", channel, targetDate, leadDays, remindAt, status: "pending"|"sent"|"skipped"|"failed"|"superseded", skipReason, attempts, sentAt, readAt, lastError }`.
+`skipReason` is one of `smtp_not_configured`, `email_not_verified`, `email_disabled`, `subscription_inactive`, `delivery_window_missed`, `invalid_time_zone`. `lastError` is a short safe label such as `SMTP 421`, never provider output. `meta.unread` counts delivered, undismissed in-app reminders. For email, `sent` means **the SMTP server accepted the message**; SubCycle cannot see whether it reached an inbox.
+### `POST /api/reminders/:id/dismiss` → `200 { data: Reminder }` · `404`
+Marks a delivered in-app reminder read. Idempotent. Any other reminder (pending, skipped, failed, email, or another user's) is `404`.
+
+## Preferences (Stage 7: reminder fields only)
+### `GET /api/preferences` → `200 { data: Preferences }`
+### `PATCH /api/preferences` → `200 { data: Preferences }`
+Strict body with at least one of `reminderLeadDays` (0-60), `reminderHour` (0-23), `inAppReminders`, `emailRemindersEnabled`, `trialRemindersEnabled`. `currency`, `theme` and `timezone` are rejected (`422`) until the Stage 8 settings page. A successful change immediately reconciles that user's planned reminders (best effort; the scheduler would do it anyway).
+
+## Scheduler (Stage 7)
+There is no HTTP surface. The scheduler runs inside the API process; see `docs/OPERATIONS.md` for tasks, locking, retries and guarantees.
+
+## Account email verification
+`POST /api/account/email-verification` (session; `503` when no SMTP is configured, `429` inside the resend cooldown, `409` already verified) and `POST /api/account/email-verification/confirm` (`{ token }`, single use, no session needed).
 
 ## Errors specific to these stages
 `422 VALIDATION_ERROR` (with `details[{path,message}]`) · `404 NOT_FOUND` · `409 INVALID_TRANSITION` · `409 CURRENCY_LOCKED` · `409 SUBSCRIPTION_LIMIT_REACHED` · `409 DUPLICATE_PAYMENT_PERIOD`.

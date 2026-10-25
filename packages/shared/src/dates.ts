@@ -33,6 +33,30 @@ export function dateInZone(instant: Date, timeZone: string): DateOnly {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+function offsetMs(instantMs: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(instantMs));
+  const n = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  return Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second')) - Math.floor(instantMs / 1000) * 1000;
+}
+
+/**
+ * The instant at which the wall clock in `timeZone` reads `date` + `hour`:00. Uses the zone database, never a fixed offset.
+ * DST edge cases are resolved deterministically: a wall time that does not exist (spring-forward gap) moves FORWARD by the
+ * gap, and one that happens twice (fall-back) resolves to the FIRST occurrence. Throws RangeError for an unknown zone.
+ */
+export function zonedInstant(date: DateOnly, hour: number, timeZone: string): Date {
+  const p = parseDateOnly(date);
+  if (!p) throw new RangeError(`Invalid date: ${date}`);
+  const wanted = Date.UTC(p.y, p.m - 1, p.d, hour, 0, 0);
+  const before = offsetMs(wanted - DAY_MS, timeZone);
+  const after = offsetMs(wanted + DAY_MS, timeZone);
+  const candidates = [...new Set([wanted - before, wanted - after])].filter((u) => u + offsetMs(u, timeZone) === wanted);
+  if (candidates.length > 0) return new Date(Math.min(...candidates));
+  return new Date(wanted - Math.min(before, after)); // gap: use the offset in force before the jump, landing after it
+}
+
 export const isValidDateOnly = (s: string): boolean => parseDateOnly(s) !== null;
 
 const pad = (n: number, width: number) => String(n).padStart(width, '0');

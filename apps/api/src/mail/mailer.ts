@@ -30,6 +30,10 @@ export class SmtpMailer implements Mailer {
       port: smtp.port,
       secure: smtp.secure,
       auth: smtp.user ? { user: smtp.user, pass: smtp.pass ?? '' } : undefined,
+      // Bounded well below the scheduler's claim lease, so a hung server can't outlive the lease and cause a double send.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 30_000,
     });
   }
   async send(message: MailMessage): Promise<void> {

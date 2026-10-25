@@ -1,10 +1,13 @@
 import type { SubscriptionDto } from '@subcycle/shared';
 import type { Express } from 'express';
+import { Writable } from 'node:stream';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { FakeClock } from '../src/clock.js';
 import { loadConfig, type Config } from '../src/config.js';
 import { createPool, type Pool } from '../src/db/pool.js';
+import { createLogger, type Logger } from '../src/logger.js';
+import type { ReminderEnv } from '../src/services/reminders.js';
 import { DisabledMailer, type Mailer, type MailMessage } from '../src/mail/mailer.js';
 import { TEST_DB_URL } from './dbUrl.js';
 
@@ -14,21 +17,35 @@ export const PASSWORD = 'Tr0ub4dor&3-horse';
 export const T0 = '2030-01-15T10:00:00.000Z';
 export const DAY = 24 * 60 * 60 * 1000;
 
+/** A provider error shaped like nodemailer's: `responseCode` for SMTP replies, `code` for network-level failures. */
+export const smtpError = (responseCode: number) => Object.assign(new Error(`${responseCode} simulated SMTP reply (secret-provider-text user@example.com)`), { responseCode });
+export const networkError = (code = 'ETIMEDOUT') => Object.assign(new Error(`${code} simulated`), { code });
+
 export class FakeMailer implements Mailer {
-  readonly configured = true;
+  configured = true;
   sent: MailMessage[] = [];
   failNext = false;
+  /** Errors thrown by the next sends, in order (consumed one per send). */
+  errors: unknown[] = [];
+  /** Runs before each send resolves: lets tests hold a send open to exercise concurrency. */
+  onSend?: (m: MailMessage) => Promise<void>;
+  attempts = 0;
   async send(message: MailMessage): Promise<void> {
+    this.attempts++;
+    await this.onSend?.(message);
     if (this.failNext) {
       this.failNext = false;
       throw new Error('SMTP connection refused (simulated)');
     }
+    if (this.errors.length) throw this.errors.shift();
     this.sent.push(message);
   }
 }
 
 export interface Overrides {
   rateLimit?: Partial<Config['rateLimit']>;
+  scheduler?: Partial<Config['scheduler']>;
+  logger?: Logger;
   mailer?: Mailer;
   env?: NodeJS.ProcessEnv;
 }
@@ -45,6 +62,7 @@ export function testConfig(o: Overrides = {}): Config {
     ...base,
     // Generous by default so unrelated tests never trip limits; limit tests override explicitly.
     rateLimit: { ...base.rateLimit, authMax: 1000, loginPerEmailMax: 1000, apiMax: 100_000, ...o.rateLimit },
+    scheduler: { ...base.scheduler, ...o.scheduler },
   };
 }
 
@@ -54,6 +72,9 @@ export interface TestCtx {
   clock: FakeClock;
   mailer: Mailer;
   config: Config;
+  logger: Logger;
+  /** Everything the scheduler and reminder services need. */
+  env: ReminderEnv;
 }
 
 export function createCtx(o: Overrides = {}): TestCtx {
@@ -61,7 +82,8 @@ export function createCtx(o: Overrides = {}): TestCtx {
   const pool = createPool(TEST_DB_URL);
   const clock = new FakeClock(T0);
   const mailer = o.mailer ?? new DisabledMailer();
-  return { app: createApp({ config, pool, clock, mailer }), pool, clock, mailer, config };
+  const logger = o.logger ?? createLogger({ logLevel: 'silent' });
+  return { app: createApp({ config, pool, clock, mailer, logger }), pool, clock, mailer, config, logger, env: { pool, clock, mailer, config, logger } };
 }
 
 export async function resetDb(pool: Pool): Promise<void> {
@@ -191,4 +213,47 @@ export async function withFailingTrigger<T>(
     await pool.query(`DROP TRIGGER IF EXISTS ${trigger} ON ${table}`);
     await pool.query('DROP FUNCTION IF EXISTS test_always_fail()');
   }
+}
+
+// ───────────── log capture ─────────────
+
+/** A real pino logger writing into memory, so tests can assert on exactly what would be logged. */
+export function captureLogs() {
+  const lines: string[] = [];
+  const stream = new Writable({
+    write(chunk, _enc, cb) {
+      lines.push(...chunk.toString().split(String.fromCharCode(10)).filter(Boolean));
+      cb();
+    },
+  });
+  const logger = createLogger({ logLevel: 'debug' }, stream);
+  return { logger, lines, events: () => lines.map((l) => JSON.parse(l) as Record<string, unknown>), text: () => lines.join(String.fromCharCode(10)) };
+}
+
+/** Registers a user and sets their preferences directly (bypassing the API) for scheduler-level tests. */
+export async function setPrefs(pool: Pool, userId: string, p: Partial<{ timezone: string; reminder_lead_days: number; reminder_hour: number; in_app_reminders: boolean; email_reminders_enabled: boolean; trial_reminders_enabled: boolean }>) {
+  const entries = Object.entries(p);
+  if (!entries.length) return;
+  await pool.query(`UPDATE user_preferences SET ${entries.map(([k], i) => `${k} = $${i + 2}`).join(', ')} WHERE user_id = $1`, [userId, ...entries.map(([, v]) => v)]);
+}
+
+export const verifyEmail = (pool: Pool, userId: string) => pool.query('UPDATE users SET email_verified_at = now() WHERE id = $1', [userId]);
+
+export async function remindersOf(pool: Pool, userId: string) {
+  const { rows } = await pool.query(
+    `SELECT id, subscription_id, kind, channel, target_date::text AS target_date, lead_days, remind_at, status, skip_reason, attempts, next_attempt_at, last_error, sent_at, read_at
+       FROM reminders WHERE user_id = $1 ORDER BY target_date, channel, id`,
+    [userId],
+  );
+  return rows as {
+    id: string; subscription_id: string; kind: string; channel: string; target_date: string; lead_days: number; remind_at: Date; status: string;
+    skip_reason: string | null; attempts: number; next_attempt_at: Date | null; last_error: string | null; sent_at: Date | null; read_at: Date | null;
+  }[];
+}
+
+/** Signs in again (for tests that move the clock past the 14/30-day session limits) and returns the cookie. */
+export async function loginCookie(app: Express, email: string, password = PASSWORD): Promise<string> {
+  const res = await request(app).post('/api/auth/login').set(CSRF).send({ email, password });
+  if (res.status !== 200) throw new Error(`login failed: ${res.status}`);
+  return sessionCookie(res)!;
 }

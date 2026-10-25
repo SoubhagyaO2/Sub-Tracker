@@ -25,7 +25,30 @@ describe('schema produced by the real migrations', () => {
   it('is idempotent: re-running applies nothing', async () => {
     expect(await migrate(pool)).toEqual([]);
     const { rows } = await pool.query('SELECT name FROM schema_migrations');
-    expect(rows).toEqual([{ name: '0001_init.sql' }]);
+    expect(rows).toEqual([{ name: '0001_init.sql' }, { name: '0002_reminder_skip_reasons.sql' }]);
+  });
+
+  it('0002 widens the reminder skip reasons without removing the old ones', async () => {
+    await pool.query('TRUNCATE users CASCADE');
+    const u = (await pool.query("INSERT INTO users (email, password_hash, display_name) VALUES ('r@example.com','h','R') RETURNING id")).rows[0].id as string;
+    await pool.query(
+      `INSERT INTO subscriptions (id, user_id, name, amount_minor, billing_frequency, anchor_date, next_billing_date, start_date)
+       VALUES ('30000000-0000-0000-0000-000000000001', $1, 'S', 100, 'monthly', '2030-01-01', '2030-01-01', '2030-01-01')`,
+      [u],
+    );
+    let day = 0;
+    for (const reason of ['smtp_not_configured', 'email_not_verified', 'email_disabled', 'subscription_inactive', 'delivery_window_missed', 'invalid_time_zone']) {
+      await pool.query(
+        `INSERT INTO reminders (user_id, subscription_id, kind, channel, target_date, lead_days, remind_at, status, skip_reason)
+         VALUES ($1, '30000000-0000-0000-0000-000000000001', 'renewal', 'email', DATE '2030-02-01' + $2::int, 3, now(), 'skipped', $3)`,
+        [u, day++, reason],
+      );
+    }
+    await expect(
+      pool.query(`INSERT INTO reminders (user_id, subscription_id, kind, channel, target_date, lead_days, remind_at, status, skip_reason)
+                  VALUES ($1, '30000000-0000-0000-0000-000000000001', 'renewal', 'email', DATE '2031-01-01', 3, now(), 'skipped', 'made_up')`, [u]),
+    ).rejects.toThrow(/reminders_skip_reason_check/);
+    await pool.query('TRUNCATE users CASCADE');
   });
 
   it('has updated_at triggers on the five documented tables', async () => {

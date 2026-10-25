@@ -70,7 +70,7 @@ Consequences (all covered by unit tests):
 `next_billing_date` = the first occurrence ≥ today (user's local date). Rules:
 - It is **stored** (explicit, per requirements). **Reads never write.** A stale stored date is handled in two separate ways:
   1. *On read, computed:* every subscription response carries `effectiveNextBillingDate`: for `active`, the stored date rolled forward along the anchor's schedule to the first occurrence on/after today; for `trial`, the stored date (a trial is never auto-converted, so an ended trial keeps its past date); `null` for paused/cancelled/archived. Nothing is written.
-  2. *Persisted, by a background job* (`rollForwardStale`, run at start-up and hourly; replaced by the Stage 7 scheduler): `active` subscriptions whose stored date is before the owner's "today" (their own time zone) are moved to the first occurrence on/after today. It never moves a date backwards, never changes the anchor, updates a row only if it still holds the value that was read (a concurrent user edit wins), and **never creates payment records**. Trials, paused, cancelled and archived rows are not touched.
+  2. *Persisted, by a background job* (`rollForwardStale`, a task of the Stage 7 scheduler: at start-up and every `SCHEDULER_INTERVAL_SECONDS`, default 300): `active` subscriptions whose stored date is before the owner's "today" (their own time zone) are moved to the first occurrence on/after today. It never moves a date backwards, never changes the anchor, updates a row only if it still holds the value that was read (a concurrent user edit wins), and **never creates payment records**. Trials, paused, cancelled and archived rows are not touched.
   Until the job runs, list filters/sorts that use the stored column (`renewsWithinDays`, `sort=nextRenewal`) see the stale value for at most the job interval; the per-row `effectiveNextBillingDate` is always exact.
 - If the user manually edits `next_billing_date`, the new date becomes the new `anchor_date` (the user is telling us the true schedule).
 - Dates are calendar dates (`date`), with **no time zone**. Time zones matter only for (a) deciding "today" and (b) scheduling reminder instants (§4.7).
@@ -129,16 +129,18 @@ trial ──convert──▶ active ──pause──▶ paused
 ### 4.7 Reminders
 - Per-subscription: `reminder_lead_days` (nullable → inherit user default; allowed 0–60). User defaults: `reminder_lead_days` (default 3), `reminder_hour` (default 09:00 local), `email_reminders_enabled` (default off), in-app reminders always on.
 - Kinds: `renewal` (target = next occurrence date) and `trial_end` (target = `trial_end_date`).
-- A reminder is uniquely identified by `(subscription_id, kind, target_date, lead_days, channel)` — a DB unique constraint is the duplicate guard, and creation uses `INSERT … ON CONFLICT DO NOTHING`.
-- `remind_at` = (`target_date − lead_days`) at `reminder_hour` in the user's IANA zone, converted to UTC. DST-safe: conversion uses the zone database (Luxon), not fixed offsets; nonexistent local times (spring-forward gap) resolve forward.
-- The scheduler (a single worker with a Postgres advisory lock; claims rows with `FOR UPDATE SKIP LOCKED`):
-  1. materializes upcoming reminders (next 90 days, idempotent),
-  2. supersedes pending reminders whose target date no longer applies (date edited, status changed),
-  3. delivers due reminders.
+- A reminder is uniquely identified by `(subscription_id, kind, target_date, lead_days, channel)`. The DB unique constraint (`reminders_unique_per_renewal`) is the duplicate guard, and creation uses `INSERT ... ON CONFLICT ... DO UPDATE ... WHERE status='superseded'` (a superseded row is revived; any other row is left alone).
+- `remind_at` = (`target_date - lead_days`) at `reminder_hour` in the user's IANA zone, converted to UTC with `zonedInstant` (DST-correct, no library: a nonexistent local time in a spring-forward gap resolves forward; an ambiguous fall-back time resolves to the first occurrence). An unknown zone is not guessed: the reminder is `skipped` with `invalid_time_zone`.
+- **What is planned** (`planReminders`, pure): for active subscriptions the renewal(s) within `today + lead + 30 days` at or after `max(today, saved next billing date)` (so a renewal already paid ahead gets none); for trials the trial end date; paused/cancelled/archived: nothing. Per-subscription `reminders_enabled=false` disables; `reminder_lead_days` overrides the user default; trial reminders follow `trial_reminders_enabled`. One row per enabled channel. A renewal already **sent** on a channel is not planned again if the lead time is later changed.
+- **Scheduler tasks** (one cycle, in order, each isolated so one failing task does not stop the others): purge expired sessions, roll stale active billing dates forward, reconcile reminders, deliver due reminders. Cycles are serialized by a Postgres advisory lock; see `docs/OPERATIONS.md`.
+  - *Reconcile* (per user, under a per-user transaction advisory lock): pending rows whose target date has passed become `skipped(delivery_window_missed)` first; missing rows are inserted; rows whose `remind_at` moved are rescheduled; rows no longer wanted become `superseded`; email rows skipped because email was unavailable are revived once it is deliverable.
+  - *Deliver*: due `pending` rows are claimed with `FOR UPDATE SKIP LOCKED` and a lease (`next_attempt_at = now + 10 min`, `attempts + 1`).
 - **Channels**
-  - `in_app`: always created; delivered = visible in the app's reminder tray (with unread/dismissed state).
-  - `email`: created only when the user enabled email reminders **and** their email is verified. If SMTP is not configured → status `skipped`, `skip_reason='smtp_not_configured'` (never `sent`). On SMTP failure → `failed` with `last_error` (sanitized) and bounded retries (3, exponential backoff).
-- Delivery status is visible to the user in the reminders list.
+  - `in_app`: delivered = marked `sent` (visible in the inbox, with unread/dismissed state).
+  - `email`: planned whenever the user enabled it, but **sent only when SMTP is configured and the address is verified**. Otherwise the row is `skipped` with the specific reason (`email_disabled`, `smtp_not_configured`, `email_not_verified`) and is **never marked sent**. SMTP 5xx: `failed` (no retry). Temporary errors (4xx, timeouts, connection errors): stay `pending` and retry after 5, 30, 120 and 360 minutes; the 5th failure is `failed`. A reminder is never delivered after its renewal date: it becomes `skipped(delivery_window_missed)`. `last_error` stores only a short safe label (`SMTP 421`, `SMTP ETIMEDOUT`, `SMTP error`).
+  - Email delivery is **at-least-once** in one narrow window (the provider accepted the message but the row could not be marked sent before the lease expired): the message may then be sent a second time. This is accepted and tested; exactly-once is impossible without provider support.
+- Delivery status is visible to the user in the reminders page (inbox and delivery log).
+- **Offline behaviour:** reminders are only delivered while the API process runs. After downtime the first cycle catches up: reminders whose renewal has not yet passed are delivered late (still before the renewal date); those whose date has passed are skipped with `delivery_window_missed`. SubCycle never treats a missed renewal as paid.
 
 > **Email verification (flagged addition).** Sending reminders to an unverified address could mail a third party. Email channel therefore requires `email_verified_at`; verification is available only when SMTP is configured. Without SMTP, the UI says so plainly and email reminders stay unavailable. Account use does not require verification.
 
@@ -215,10 +217,10 @@ Navigation: bottom bar < 1024px (Home, Subscriptions, Calendar, Analytics, Profi
 | `GET /api/subscriptions/:id/price-history` | Price changes, newest effective date first *(addition)* |
 | `GET /api/subscriptions/:id/upcoming` | Read-only projection of the next billing dates at the current price *(addition)* |
 | `GET /api/calendar/renewals?from&to` | Occurrences in range (max 366 days) |
-| `GET /api/analytics/spending?currency&cancelIds` | Analytics + optional what-if |
+| `GET /api/analytics/spending?from&to&bucket` | Estimate vs recorded vs projection, per currency *(the what-if `cancelIds` idea is not implemented)* |
 | `GET /api/reminders`, `POST /api/reminders/:id/dismiss` | In-app tray and delivery status *(addition)* |
 | `GET /api/export/csv?type=subscriptions\|payments` | CSV download |
-| `GET /api/preferences`, `PATCH /api/preferences` | Preferences |
+| `GET /api/preferences`, `PATCH /api/preferences` | Preferences (reminder fields in Stage 7; the rest in Stage 8) |
 | `PATCH /api/account`, `POST /api/account/password`, `DELETE /api/account` | Profile, change password, delete account (password re-entry required) *(addition)* |
 | `POST /api/account/email-verification`, `POST /api/account/email-verification/confirm` | Only if SMTP configured *(addition)* |
 | `GET /api/health` | Liveness (no data) |

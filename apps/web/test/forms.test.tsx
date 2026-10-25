@@ -353,3 +353,67 @@ describe('edit subscription', () => {
     expect(await screen.findByText('Subscription not found')).toBeInTheDocument();
   });
 });
+
+describe('per-subscription reminder settings', () => {
+  const existing = makeSub({ id: 'r1', name: 'Netflix', reminderLeadDays: 5, remindersEnabled: true });
+  const editServer = (sub = existing) => formServer(sub).on('PATCH', '/api/subscriptions/:id', ok(sub));
+
+  it('loads the saved override and shows the default in the hint', async () => {
+    editServer();
+    renderApp('/subscriptions/r1/edit');
+    expect(await screen.findByLabelText(/Days before/)).toHaveValue('5');
+    expect(screen.getByLabelText('Remind me before this renews')).toBeChecked();
+    expect(screen.getByText(/Leave blank to use your default \(3 days\)/)).toBeInTheDocument();
+  });
+
+  it('changing only the lead time sends only reminderLeadDays', async () => {
+    const server = editServer();
+    const { user } = renderApp('/subscriptions/r1/edit');
+    const lead = await screen.findByLabelText(/Days before/);
+    await user.clear(lead);
+    await user.type(lead, '0');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(server.to('PATCH', '/api/subscriptions/r1')).toHaveLength(1));
+    expect(server.last('PATCH', '/api/subscriptions/r1')!.body).toEqual({ reminderLeadDays: 0 });
+  });
+
+  it('clearing the override sends null so the account default applies', async () => {
+    const server = editServer();
+    const { user } = renderApp('/subscriptions/r1/edit');
+    await user.clear(await screen.findByLabelText(/Days before/));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(server.to('PATCH', '/api/subscriptions/r1')).toHaveLength(1));
+    expect(server.last('PATCH', '/api/subscriptions/r1')!.body).toEqual({ reminderLeadDays: null });
+  });
+
+  it('turning reminders off disables the lead field and sends remindersEnabled=false only', async () => {
+    const server = editServer();
+    const { user } = renderApp('/subscriptions/r1/edit');
+    await user.click(await screen.findByLabelText('Remind me before this renews'));
+    expect(screen.getByLabelText(/Days before/)).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(server.to('PATCH', '/api/subscriptions/r1')).toHaveLength(1));
+    expect(server.last('PATCH', '/api/subscriptions/r1')!.body).toEqual({ remindersEnabled: false });
+  });
+
+  it.each(['61', '-2', '1.5', 'x'])('rejects lead %j locally with no request', async (value) => {
+    const server = editServer();
+    const { user } = renderApp('/subscriptions/r1/edit');
+    const lead = await screen.findByLabelText(/Days before/);
+    await user.clear(lead);
+    await user.type(lead, value);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect((await screen.findAllByText(/0 to 60|between 0 and 60|whole number/i)).length).toBeGreaterThan(0);
+    expect(server.to('PATCH', '/api/subscriptions/r1')).toHaveLength(0);
+  });
+
+  it('creating a subscription sends reminder fields only when the user set them', async () => {
+    const server = formServer();
+    const { user } = renderApp('/subscriptions/new');
+    await fillBasics(user);
+    await user.type(screen.getByLabelText(/Days before/), '2');
+    await user.click(screen.getByRole('button', { name: 'Add subscription' }));
+    await waitFor(() => expect(server.to('POST', '/api/subscriptions')).toHaveLength(1));
+    expect(server.last('POST', '/api/subscriptions')!.body).toMatchObject({ reminderLeadDays: 2 });
+  });
+});

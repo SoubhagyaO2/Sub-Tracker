@@ -3,7 +3,11 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 import { AppShell } from './components/AppShell';
 import { Button, LinkButton, Spinner } from './components/ui/Button';
 import { EmptyState, ErrorState } from './components/ui/display';
+import { AnalyticsPage } from './pages/AnalyticsPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { DashboardPage } from './pages/Dashboard';
+import { RemindersPage } from './pages/RemindersPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { EditSubscriptionPage, NewSubscriptionPage } from './pages/SubscriptionFormPages';
 import { SubscriptionDetailPage } from './pages/SubscriptionDetail';
@@ -89,8 +93,13 @@ export function AppRoutes() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
       </Route>
+      {/* The emailed link works with or without a session: the token is the credential. */}
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route element={<RequireAuth />}>
         <Route index element={<DashboardPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/subscriptions" element={<SubscriptionListPage />} />
         <Route path="/subscriptions/new" element={<NewSubscriptionPage />} />
         <Route path="/subscriptions/:id" element={<SubscriptionDetailPage />} />

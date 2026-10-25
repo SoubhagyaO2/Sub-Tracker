@@ -1,3 +1,4 @@
+import { CURRENCIES, type CurrencyCode } from './currency.js';
 import type { BillingFrequency } from './dates.js';
 
 export const MAX_AMOUNT_MINOR = 1_000_000_000_000;
@@ -34,4 +35,12 @@ export function totalsMinor(items: readonly { amountMinor: number; billingFreque
   let yearly = 0n;
   for (const i of items) yearly += BigInt(i.amountMinor) * YEARLY_MULTIPLIER[i.billingFrequency];
   return { monthlyEquivalentMinor: Number((2n * yearly + 12n) / 24n), annualizedMinor: Number(yearly) };
+}
+
+/** "64900" + INR -> "649.00 INR", by exact string arithmetic. For plain-text contexts such as email. */
+export function formatMinorPlain(minor: number, currency: CurrencyCode): string {
+  const exponent = CURRENCIES[currency];
+  if (exponent === 0) return `${minor} ${currency}`;
+  const digits = String(minor).padStart(exponent + 1, '0');
+  return `${digits.slice(0, -exponent)}.${digits.slice(-exponent)} ${currency}`;
 }

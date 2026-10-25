@@ -1,13 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { useAuth, useSession } from '../state/auth';
+import { useUnreadReminders } from '../state/reminders';
 import { LinkButton } from './ui/Button';
 import { Icon, LogoMark, type IconName } from './ui/Icon';
 
 const NAV: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: '/', label: 'Home', icon: 'home', end: true },
   { to: '/subscriptions', label: 'Subscriptions', icon: 'list' },
+  { to: '/calendar', label: 'Calendar', icon: 'calendar' },
+  { to: '/analytics', label: 'Analytics', icon: 'chart' },
 ];
+/** On phones these four sit in the bottom bar with "Add"; Reminders live behind the bell in the header. */
+const REMINDERS = { to: '/reminders', label: 'Reminders', icon: 'bell' as IconName };
+
+function UnreadBadge({ count }: { count: number | null }) {
+  if (!count) return null;
+  return (
+    <span className="ml-auto min-w-5 rounded-full bg-accent px-1.5 text-center text-xs font-semibold text-accent-fg tnum">
+      {count > 99 ? '99+' : count}
+      <span className="sr-only"> unread</span>
+    </span>
+  );
+}
 
 function Wordmark() {
   return (
@@ -93,6 +108,7 @@ export function AppShell() {
   const { user } = useSession();
   const { logout } = useAuth();
   const location = useLocation();
+  const unread = useUnreadReminders();
   const mainRef = useRef<HTMLElement>(null);
   const previousPath = useRef(location.pathname);
 
@@ -121,6 +137,11 @@ export function AppShell() {
               {n.label}
             </NavLink>
           ))}
+          <NavLink to={REMINDERS.to} className={desktopLink}>
+            <Icon name={REMINDERS.icon} />
+            {REMINDERS.label}
+            <UnreadBadge count={unread} />
+          </NavLink>
         </nav>
         <div className="mt-6 px-1">
           <LinkButton to="/subscriptions/new" variant="primary" className="w-full">
@@ -141,7 +162,13 @@ export function AppShell() {
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur lg:hidden">
           <Wordmark />
-          <AccountMenu />
+          <div className="flex items-center gap-1">
+            <NavLink to={REMINDERS.to} className="relative flex min-h-11 min-w-11 items-center justify-center rounded-control text-muted hover:bg-raised hover:text-fg aria-[current=page]:text-accent-text" aria-label={unread ? `Reminders, ${unread} unread` : 'Reminders'}>
+              <Icon name="bell" />
+              {unread ? <span aria-hidden="true" className="absolute right-1 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-[10px] font-semibold leading-4 text-accent-fg tnum">{unread > 99 ? '99+' : unread}</span> : null}
+            </NavLink>
+            <AccountMenu />
+          </div>
         </header>
         <main id="main" ref={mainRef} tabIndex={-1} className="mx-auto w-full max-w-5xl px-4 pb-28 pt-6 outline-none lg:px-8 lg:pb-12 lg:pt-10">
           <Outlet />

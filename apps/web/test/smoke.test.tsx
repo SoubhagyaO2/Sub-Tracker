@@ -147,6 +147,23 @@ describe('real API + database: register to payment', () => {
     await user.click((await section('Recorded payments by month')).getByRole('button', { name: 'View as table' }));
     expect(within(screen.getByRole('table')).getAllByText(/149\.50/).length).toBeGreaterThan(0);
 
+    // 5b. Stage 7 against the real server: the calendar projects the NEXT renewal (the paid one is not repeated),
+    // analytics keeps recorded vs estimate vs projection apart, and the reminders page loads honestly.
+    await user.click(screen.getAllByRole('link', { name: /^Calendar$/ })[0]!);
+    await user.click(await screen.findByRole('button', { name: '90 days' }));
+    const upcoming = await section('Upcoming');
+    const rows = await upcoming.findAllByText('Smoke TV', {}, { timeout: 15000 });
+    expect(rows).toHaveLength(2); // renewals ~+1 and ~+2 months after the paid one; the paid renewal itself is not repeated (3 months out is past 90 days)
+    await user.click(screen.getAllByRole('link', { name: /^Analytics$/ })[0]!);
+    const rec = await section('Recorded spending');
+    expect(await rec.findByText('Net spent', {}, { timeout: 15000 })).toBeInTheDocument();
+    expect(rec.getByText('Net spent').nextElementSibling).toHaveTextContent(/149\.50.*INR/);
+    expect((await section('Recurring cost')).getByText('Monthly equivalent').nextElementSibling).toHaveTextContent(/149\.50/);
+    await user.click(screen.getAllByRole('link', { name: /Reminders/ })[0]!);
+    expect(await screen.findByRole('heading', { name: 'Reminder settings' }, { timeout: 15000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Email reminders aren’t available on this server/)).toBeInTheDocument(); // no SMTP in the test server
+    await user.click(screen.getAllByRole('link', { name: /^Home$/ })[0]!);
+
     // 6. Edit the price: only the price (and its history note) is sent, and the change is recorded.
     await user.click(screen.getAllByRole('link', { name: /Subscriptions/ })[0]!);
     await user.click(await screen.findByRole('link', { name: /Smoke TV/ }));

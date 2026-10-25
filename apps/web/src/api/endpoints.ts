@@ -1,9 +1,18 @@
 import type {
+  AnalyticsBucket,
+  AnalyticsResponse,
+  CalendarOccurrence,
+  CalendarResponseMeta,
   CreatePaymentInput,
   CreateSubscriptionInput,
   LoginInput,
   PaymentDto,
+  PreferencesDto,
   PriceChangeDto,
+  ReminderChannel,
+  ReminderDto,
+  ReminderStatus,
+  UpdateReminderPreferencesInput,
   RegisterInput,
   SessionPayload,
   StatusActionInput,
@@ -100,3 +109,52 @@ export async function fetchAllSubscriptions(signal?: AbortSignal): Promise<Subsc
   }
   return all;
 }
+
+// ───────────── Stage 7: calendar, analytics, reminders, reminder settings ─────────────
+
+export const calendarApi = {
+  renewals: (q: { from?: DateOnly; to?: DateOnly }, signal?: AbortSignal) =>
+    request<CalendarOccurrence[]>('GET', '/api/calendar/renewals', { query: { ...q }, signal }).then((r) => ({
+      items: r.data,
+      meta: r.meta as unknown as CalendarResponseMeta,
+    })),
+};
+
+export const analyticsApi = {
+  spending: (q: { from?: DateOnly; to?: DateOnly; bucket?: AnalyticsBucket }, signal?: AbortSignal) =>
+    request<AnalyticsResponse>('GET', '/api/analytics/spending', { query: { ...q }, signal }).then((r) => r.data),
+};
+
+export interface ReminderMeta extends PageMeta {
+  /** Delivered in-app reminders the user has not dismissed yet. */
+  unread: number;
+}
+export interface ReminderListParams {
+  page?: number;
+  pageSize?: number;
+  channel?: ReminderChannel;
+  status?: readonly ReminderStatus[];
+  unread?: boolean;
+}
+
+export const remindersApi = {
+  list: (q: ReminderListParams, signal?: AbortSignal) =>
+    request<ReminderDto[]>('GET', '/api/reminders', { query: { ...q, unread: q.unread ? 'true' : undefined }, signal }).then((r) => ({
+      items: r.data,
+      meta: r.meta as unknown as ReminderMeta,
+    })),
+  dismiss: (id: string) => request<ReminderDto>('POST', `/api/reminders/${id}/dismiss`).then((r) => r.data),
+};
+
+export const preferencesApi = {
+  get: (signal?: AbortSignal) => request<PreferencesDto>('GET', '/api/preferences', { signal }).then((r) => r.data),
+  update: (patch: UpdateReminderPreferencesInput) => request<PreferencesDto>('PATCH', '/api/preferences', { body: patch }).then((r) => r.data),
+};
+
+export const accountApi = {
+  /** 503 when the server has no email provider; 429 within the resend cooldown; 409 if already verified. */
+  sendVerification: () => request<{ sent: boolean }>('POST', '/api/account/email-verification').then((r) => r.data),
+  /** The emailed token is the credential, so this works without a session. */
+  confirmVerification: (token: string) =>
+    request<{ verified: boolean }>('POST', '/api/account/email-verification/confirm', { body: { token }, skipAuthRedirect: true }).then((r) => r.data),
+};

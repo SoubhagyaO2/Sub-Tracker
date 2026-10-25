@@ -3,7 +3,7 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
-import { pino } from 'pino';
+import { createLogger } from './logger.js';
 import type { AppDeps } from './deps.js';
 import { csrfProtection } from './middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
@@ -11,6 +11,7 @@ import { apiLimiter } from './middleware/rateLimit.js';
 import { loadSession } from './middleware/session.js';
 import { accountRouter } from './routes/account.js';
 import { authRouter } from './routes/auth.js';
+import { insightsRouters } from './routes/insights.js';
 import { subscriptionsRouter } from './routes/subscriptions.js';
 
 export function createApp(deps: AppDeps): Express {
@@ -19,11 +20,7 @@ export function createApp(deps: AppDeps): Express {
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustProxy);
 
-  const logger = pino({
-    level: config.logLevel,
-    // Defence in depth: serializers below already drop headers/bodies.
-    redact: { paths: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]', '*.password', '*.token'], remove: true },
-  });
+  const logger = deps.logger ?? createLogger(config);
   app.use(
     pinoHttp({
       logger,
@@ -65,6 +62,11 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/auth', authRouter(deps));
   app.use('/api/account', accountRouter(deps));
   app.use('/api/subscriptions', subscriptionsRouter(deps));
+  const insights = insightsRouters({ ...deps, logger });
+  app.use('/api/calendar', insights.calendar);
+  app.use('/api/analytics', insights.analytics);
+  app.use('/api/reminders', insights.reminders);
+  app.use('/api/preferences', insights.preferences);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

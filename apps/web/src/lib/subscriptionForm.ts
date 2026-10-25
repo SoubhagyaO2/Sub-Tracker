@@ -36,6 +36,10 @@ export interface SubscriptionFormValues {
   notes: string;
   usageLevel: '' | UsageLevel;
   icon: string;
+  /** Remind me about this subscription at all. */
+  remindersEnabled: boolean;
+  /** Days before; '' means "use my default". */
+  reminderLeadDays: string;
   recordPriceChange: boolean;
   priceChangeEffectiveOn: string;
   priceChangeNote: string;
@@ -45,7 +49,7 @@ export function emptyValues(currency: CurrencyCode): SubscriptionFormValues {
   return {
     name: '', category: 'other', amountMinor: '', currency, billingFrequency: 'monthly', status: 'active',
     nextBillingDate: '', trialEndDate: '', startDate: '', anchorDate: '', paymentMethodLabel: '', websiteUrl: '',
-    cancellationUrl: '', notes: '', usageLevel: '', icon: '', recordPriceChange: true, priceChangeEffectiveOn: '', priceChangeNote: '',
+    cancellationUrl: '', notes: '', usageLevel: '', icon: '', remindersEnabled: true, reminderLeadDays: '', recordPriceChange: true, priceChangeEffectiveOn: '', priceChangeNote: '',
   };
 }
 
@@ -57,6 +61,7 @@ export function valuesFromSubscription(s: SubscriptionDto): SubscriptionFormValu
     trialEndDate: s.trialEndDate ?? '', startDate: s.startDate, anchorDate: s.anchorDate,
     paymentMethodLabel: s.paymentMethodLabel ?? '', websiteUrl: s.websiteUrl ?? '', cancellationUrl: s.cancellationUrl ?? '',
     notes: s.notes ?? '', usageLevel: s.usageLevel ?? '', icon: s.icon?.kind === 'emoji' ? s.icon.value : '',
+    remindersEnabled: s.remindersEnabled, reminderLeadDays: s.reminderLeadDays === null ? '' : String(s.reminderLeadDays),
     recordPriceChange: true, priceChangeEffectiveOn: '', priceChangeNote: '',
   };
 }
@@ -70,6 +75,14 @@ const dateProblem = (value: string, label: string): string | null => {
 };
 
 const text = (v: string) => v.trim();
+
+/** '' -> null (use the default); otherwise a whole number of days 0..60. */
+function parseLead(raw: string): { ok: true; value: number | null } | { ok: false; message: string } {
+  const t = raw.trim();
+  if (t === '') return { ok: true, value: null };
+  if (!/^\d{1,2}$/.test(t) || Number(t) > 60) return { ok: false, message: 'Enter a whole number of days from 0 to 60, or leave it blank to use your default.' };
+  return { ok: true, value: Number(t) };
+}
 
 /** Validates the schedule dates the same way the server does (shared rules), so errors appear before submitting. */
 function scheduleErrors(
@@ -113,6 +126,8 @@ export function buildCreatePayload(v: SubscriptionFormValues, ctx: { today: stri
     const start = v.startDate || (compareDates(anchor, ctx.today) < 0 ? anchor : ctx.today);
     Object.assign(errors, scheduleErrors(v, { status: trial ? 'trial' : 'active', anchor, next, start, trialEnd: v.trialEndDate || null }, ctx.today, true));
   }
+  const lead = parseLead(v.reminderLeadDays);
+  if (!lead.ok) errors.reminderLeadDays = lead.message;
   if (Object.keys(errors).length) return { ok: false, errors };
 
   const payload: CreateSubscriptionInput = {
@@ -132,6 +147,8 @@ export function buildCreatePayload(v: SubscriptionFormValues, ctx: { today: stri
     ...(text(v.notes) ? { notes: text(v.notes) } : {}),
     ...(v.usageLevel ? { usageLevel: v.usageLevel } : {}),
     ...(text(v.icon) ? { icon: { kind: 'emoji' as const, value: text(v.icon) } } : {}),
+    ...(!v.remindersEnabled ? { remindersEnabled: false } : {}),
+    ...(lead.ok && lead.value !== null ? { reminderLeadDays: lead.value } : {}),
   };
   const parsed = createSubscriptionSchema.safeParse(payload);
   if (!parsed.success) return { ok: false, errors: fieldErrorsFromIssues(parsed.error.issues) };
@@ -185,6 +202,11 @@ export function buildUpdatePayload(v: SubscriptionFormValues, original: Subscrip
   if ((v.usageLevel || null) !== original.usageLevel) patch.usageLevel = v.usageLevel || null;
   const originalIcon = original.icon?.kind === 'emoji' ? original.icon.value : '';
   if (text(v.icon) !== originalIcon) patch.icon = text(v.icon) ? { kind: 'emoji', value: text(v.icon) } : null;
+
+  if (v.remindersEnabled !== original.remindersEnabled) patch.remindersEnabled = v.remindersEnabled;
+  const lead = parseLead(v.reminderLeadDays);
+  if (!lead.ok) errors.reminderLeadDays = lead.message;
+  else if (lead.value !== original.reminderLeadDays) patch.reminderLeadDays = lead.value;
 
   // Price-change bookkeeping only applies when the amount really changes within the same currency.
   if (amountChanged && !currencyChanged) {

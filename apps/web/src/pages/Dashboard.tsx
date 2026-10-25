@@ -1,14 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { fetchRecordedPayments, RECORDED_SUBSCRIPTION_CAP } from '../api/aggregate';
-import { fetchAllSubscriptions } from '../api/endpoints';
-import { CategoryBars, MonthlyBars } from '../components/charts';
+import { analyticsApi, fetchAllSubscriptions } from '../api/endpoints';
+import { BucketBars, CategoryBars } from '../components/charts';
 import { LinkButton } from '../components/ui/Button';
 import { Card, CardHeader, DateText, EmptyState, ErrorState, KindTag, LoadingRegion, Money, ServiceIcon, Skeleton } from '../components/ui/display';
 import { SelectField } from '../components/ui/Field';
 import { Icon } from '../components/ui/Icon';
-import { activeTotals, categoryBreakdown, recentPayments, recordedByMonth, recordedCurrencies, renewalAmounts, upcomingRenewals } from '../lib/dashboard';
-import { greetingFor, todayIn, formatDate } from '../lib/dates';
+import { activeTotals, categoryBreakdown, renewalAmounts, upcomingRenewals } from '../lib/dashboard';
+import { formatDate, formatMonth, formatMonthShort, greetingFor, todayIn } from '../lib/dates';
 import { FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
 import { orderCurrencies } from '../lib/money';
 import { useApi } from '../state/data';
@@ -59,8 +58,8 @@ export function DashboardPage() {
 
   const subsQ = useApi((signal) => fetchAllSubscriptions(signal), []);
   const subs = subsQ.status === 'ready' ? subsQ.data : undefined;
-  const idsKey = subs?.map((s) => s.id).join(',') ?? '';
-  const payQ = useApi((signal) => fetchRecordedPayments(subs!, today, signal), [idsKey, today], { enabled: subs !== undefined && subs.length > 0 });
+  // Recorded spending and recent payments come from ONE analytics request (not one request per subscription).
+  const payQ = useApi((signal) => analyticsApi.spending({}, signal), [today], { enabled: subs !== undefined && subs.length > 0 });
 
   const view = useMemo(() => {
     if (!subs) return null;
@@ -114,9 +113,10 @@ export function DashboardPage() {
 
   const catCurrencies = orderCurrencies(view.totals.map((t) => t.currency), preferences.currency);
   const catCur = catCurrency && catCurrencies.includes(catCurrency) ? catCurrency : catCurrencies[0];
-  const records = payQ.status === 'ready' ? payQ.data : undefined;
-  const recCurrencies = records ? recordedCurrencies(records.payments, preferences.currency) : [];
+  const records = payQ.status === 'ready' ? payQ.data.recorded : undefined;
+  const recCurrencies = records ? orderCurrencies(records.currencies.map((c) => c.currency), preferences.currency) : [];
   const recCur = recCurrency && recCurrencies.includes(recCurrency) ? recCurrency : recCurrencies[0];
+  const recSeries = records && recCur ? records.currencies.find((c) => c.currency === recCur) : undefined;
 
   return (
     <div className="space-y-6">
@@ -162,17 +162,19 @@ export function DashboardPage() {
             <ErrorState error={payQ.error} onRetry={payQ.retry} title="We couldn’t load your payments" />
           ) : !records ? (
             <LoadingRegion label="Loading recorded payments"><Skeleton className="h-48" /></LoadingRegion>
-          ) : records.payments.length === 0 || !recCur ? (
+          ) : !recSeries || !recCur ? (
             <EmptyState title="No payments recorded yet" icon="clock">
               This chart shows only payments you record: nothing is estimated or filled in. Open a subscription and choose “Record payment” after you’ve paid.
             </EmptyState>
           ) : (
             <>
               <CurrencyPicker id="recorded-currency" currencies={recCurrencies} value={recCur} onChange={setRecCurrency} />
-              <MonthlyBars data={recordedByMonth(records.payments, recCur, today)} currency={recCur} subject="Recorded payments" />
-              {records.partial ? (
-                <p className="mt-2 text-xs text-warn">Includes your {RECORDED_SUBSCRIPTION_CAP} most recently added subscriptions only.</p>
-              ) : null}
+              <BucketBars
+                data={recSeries.buckets.map((b) => ({ key: b.start, label: formatMonth(b.start.slice(0, 7)), short: formatMonthShort(b.start.slice(0, 7)), netMinor: b.netMinor }))}
+                currency={recCur}
+                subject="Recorded payments"
+                unit="month"
+              />
             </>
           )}
         </Card>
@@ -250,17 +252,17 @@ export function DashboardPage() {
               <p className="text-sm text-muted">Payments couldn’t be loaded.</p>
             ) : !records ? (
               <LoadingRegion label="Loading recent payments"><Skeleton className="h-24" /></LoadingRegion>
-            ) : records.payments.length === 0 ? (
+            ) : records.recentPayments.length === 0 ? (
               <p className="text-sm text-muted">Nothing recorded yet. Only payments you record appear here.</p>
             ) : (
               <ul className="divide-y divide-line">
-                {recentPayments(records.payments).map(({ payment, subscriptionId, subscriptionName }) => (
-                  <li key={payment.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                {records.recentPayments.map((p) => (
+                  <li key={p.paymentId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                     <span className="min-w-0">
-                      <Link to={`/subscriptions/${subscriptionId}`} className="block truncate font-medium !text-fg">{subscriptionName}</Link>
-                      <span className="text-xs text-muted">{formatDate(payment.paidOn)} · {PAYMENT_STATUS_LABEL[payment.status]}</span>
+                      <Link to={`/subscriptions/${p.subscriptionId}`} className="block truncate font-medium !text-fg">{p.subscriptionName}</Link>
+                      <span className="text-xs text-muted">{formatDate(p.paidOn)} · {PAYMENT_STATUS_LABEL[p.status]}</span>
                     </span>
-                    <Money minor={payment.status === 'refunded' ? -payment.amountMinor : payment.amountMinor} currency={payment.currency} className={payment.status === 'failed' ? 'text-muted line-through' : ''} />
+                    <Money minor={p.status === 'refunded' ? -p.amountMinor : p.amountMinor} currency={p.currency} className={p.status === 'failed' ? 'text-muted line-through' : ''} />
                   </li>
                 ))}
               </ul>

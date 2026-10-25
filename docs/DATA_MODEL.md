@@ -253,14 +253,15 @@ Cross-column rules that Postgres CHECK cannot express cheaply (enforced in the s
 | Operation | Statements (single transaction) |
 |---|---|
 | Register | insert `users` → insert `user_preferences` → insert `sessions` |
-| Edit subscription with price change | `SELECT … FOR UPDATE` subscription (scoped by user) → insert `subscription_price_history` → update `subscriptions` (and supersede pending reminders if dates changed) |
-| Record payment (+ advance) | `SELECT … FOR UPDATE` subscription → insert `payments` (unique-violation → 409) → update `next_billing_date` along the anchor schedule (if opted in; anchor untouched) → supersede stale reminders (Stage 7) |
+| Edit subscription with price change | `SELECT … FOR UPDATE` subscription (scoped by user) → insert `subscription_price_history` → update `subscriptions` (pending reminders are superseded by the next scheduler reconcile, not in this transaction) |
+| Record payment (+ advance) | `SELECT … FOR UPDATE` subscription → insert `payments` (unique-violation → 409) → update `next_billing_date` along the anchor schedule (if opted in; anchor untouched) (stale reminders are superseded by the next scheduler reconcile) |
 | Delete payment | `SELECT … FOR UPDATE` subscription → `DELETE … WHERE id AND subscription_id AND user_id` |
-| Roll-forward job | per row: `UPDATE … SET next_billing_date WHERE id AND user_id AND status='active' AND next_billing_date = <value read>` (optimistic; no payments written) |
-| Status transition | lock row → validate state machine → update status/dates → supersede pending reminders |
+| Roll-forward task (scheduler) | per row: `UPDATE … SET next_billing_date WHERE id AND user_id AND status='active' AND next_billing_date = <value read>` (optimistic; no payments written) |
+| Status transition | lock row → validate state machine → update status/dates (pending reminders are superseded by the next scheduler reconcile) |
 | Change password | update `users.password_hash` → delete other sessions |
 | Delete account | verify password → `DELETE FROM users` (cascade) |
-| Reminder delivery | claim rows `FOR UPDATE SKIP LOCKED` → deliver → update status/attempts (delivery I/O is outside the row lock; the claim sets `next_attempt_at` lease first) |
+| Reminder delivery | claim rows `FOR UPDATE SKIP LOCKED` and set the lease (`next_attempt_at = now + 10 min`, `attempts + 1`) in one statement → deliver (I/O outside any lock) → update status; every update is conditional on `status='pending'` |
+| Reminder reconcile (per user) | one transaction under `pg_advisory_xact_lock(hashtextextended('reminders:'||user_id, 7))` → expire passed targets → insert/revive/reschedule/supersede |
 
 Isolation: default `READ COMMITTED` with explicit row locks on the subscription for multi-row edits.
 
@@ -274,3 +275,21 @@ Amounts are formatted from minor units with the currency's exponent (no float ma
 - Forward-only numbered SQL files in `apps/api/migrations/`, applied by a small runner that records applied names + checksums in `schema_migrations` inside a transaction per file.
 - Tests build the schema from these same files. CI verifies a clean database migrates to head.
 - Destructive changes follow expand → backfill → contract across releases.
+
+## 9. Stage 7 additions
+
+**Migration `0002_reminder_skip_reasons.sql`** (0001 is untouched): widens `reminders_skip_reason_check` with `email_disabled` and `invalid_time_zone` (the full set is `smtp_not_configured, email_not_verified, email_disabled, subscription_inactive, delivery_window_missed, invalid_time_zone`) and adds `reminders_user_channel_status_idx (user_id, channel, status, remind_at DESC)` for the inbox and delivery log.
+
+**Reminder state machine**
+```
+pending --deliver ok-----------------> sent        (in_app: inbox; email: accepted by SMTP)
+pending --skip reason----------------> skipped     (email unavailable, window missed, invalid tz, subscription inactive)
+pending --temporary SMTP error-------> pending     (attempts+1, next_attempt_at = backoff)
+pending --5xx / 5th attempt----------> failed
+pending --no longer wanted-----------> superseded  (edit, status change, lead/hour change)
+superseded --wanted again------------> pending     (revived by the unique-constraint upsert)
+skipped(email_*) --now deliverable---> pending
+```
+`sent`, `failed` and other `skipped` rows are terminal. Reads never change reminders.
+
+**Locks**: scheduler cycle = session advisory lock key `727002` (`pg_try_advisory_lock`, dedicated connection, released if the process dies); per-user reconcile = transaction advisory lock; delivery claim = row locks (`SKIP LOCKED`) plus the lease column. No new tables.

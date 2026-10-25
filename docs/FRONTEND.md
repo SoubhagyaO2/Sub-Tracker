@@ -1,4 +1,4 @@
-# SubCycle frontend (Stage 6)
+# SubCycle frontend (Stage 6, extended in Stage 7)
 
 React 19 + TypeScript + Vite + React Router + Tailwind CSS 4, in `apps/web`. It talks only to the endpoints documented in [API.md](API.md); shared schemas and domain rules come from `@subcycle/shared`.
 
@@ -17,16 +17,20 @@ npm run dev:web        # Vite on :5173, proxies /api to :3001 (same origin: cook
 | `/subscriptions` | Library: search, filters, sort, pagination (all state lives in the URL) |
 | `/subscriptions/new`, `/subscriptions/:id/edit` | Create / edit form |
 | `/subscriptions/:id` | Detail: billing facts, projected renewals, recorded payments, price history, status actions, delete |
+| `/calendar` | Renewal calendar: Month grid (keyboard-navigable) or the next 7/30/90 days; per-currency projected totals |
+| `/analytics` | Recorded spending (by month or week), recurring-cost estimate, projection windows; currency switch |
+| `/reminders` | Inbox (mark as read), reminder settings, delivery log with skip reasons |
+| `/verify-email?token=` | Landing page for the emailed verification link (public; the token is submitted once) |
 
-Everything except login/register requires a session; unauthenticated visits go to `/login` and return afterwards. Calendar, analytics, reminders and settings are later stages and are **not** linked (no dead navigation).
+Everything except login/register requires a session; unauthenticated visits go to `/login` and return afterwards. Settings and export arrive in Stage 8 and are **not** linked (no dead navigation). `/verify-email` is public because the emailed token is the credential.
 
 ## Authentication and storage
 The session is the server's httpOnly cookie. The app never reads, stores or sends a token: nothing is written to `localStorage`/`sessionStorage` (asserted in tests), requests use `credentials: 'same-origin'` and carry `X-SubCycle-Client: web` (the CSRF contract). Any 401 while signed in returns the user to `/login` with a plain "Your session has ended" notice; server error text is never shown for it.
 
 ## Product semantics enforced in the UI
-- **Three kinds of numbers, always labelled:** *Estimate* (monthly equivalent, category split), *Projection* (annualized cost, upcoming renewals), *Recorded* (payments the user entered). Recorded figures come only from payment records: no payments means an empty chart that says nothing is estimated.
+- **Three kinds of numbers, always labelled:** *Estimate* (monthly equivalent, category split), *Projection* (annualized cost, upcoming renewals), *Recorded* (payments the user entered). Recorded figures come only from payment records, computed by `GET /api/analytics/spending` (one request; the old per-subscription workaround is gone): no payments means an empty chart that says nothing is estimated.
 - **Currencies are never combined.** Totals are per currency (preferred first); charts have a currency switch; every amount shows its code.
-- **Upcoming renewals use `effectiveNextBillingDate`** (computed by the API on read) and say "calculated from schedule" when the saved date is behind. Only active subscriptions renew; trials appear as "trial ends"; paused, cancelled and archived never do. Weekly subscriptions appear once (the calendar view is Stage 7).
+- **Upcoming renewals use `effectiveNextBillingDate`** (computed by the API on read) and say "calculated from schedule" when the saved date is behind. Only active subscriptions renew; trials appear as "trial ends"; paused, cancelled and archived never do. The dashboard list shows one row per subscription; the calendar expands weekly subscriptions into every occurrence.
 - **Cancellation is the user's own record.** The dialog says SubCycle can't cancel anything, links the provider's page, and only then records the date. Payments are labelled user-entered, never verified.
 - **Payments always send `forBillingDate`** (a dropdown of real renewals, defaulting to the upcoming one) so the server's duplicate-period guard works; "move the date forward" is offered only where the API allows it.
 - **Edits send only what changed.** An unrelated edit never sends dates, so it cannot reset a month-end anchor schedule.
@@ -36,11 +40,16 @@ The session is the server's httpOnly cookie. The app never reads, stores or send
 Labelled controls with `aria-invalid`/`aria-describedby`, an error summary linking to fields and focusing the first error, a skip link, labelled landmarks, `aria-current` navigation, focus moved to the page after navigation, accessible modal dialogs (focus trap, Escape, inert background, focus restore), status shown as icon + text, charts with a text summary and a table view, reduced-motion support. axe-core runs over every screen in the test suite.
 
 ## Deliberate deviations from DESIGN_SYSTEM.md
-No Radix UI, lucide or Recharts: dialogs are a small custom component, icons are inline SVG, charts are hand-written SVG/CSS. This avoids three dependencies for a handful of simple widgets. The bottom bar has Home, Subscriptions and Add (account menu lives in the header) because only those sections exist yet.
+No Radix UI, lucide or Recharts: dialogs are a small custom component, icons are inline SVG, charts are hand-written SVG/CSS. This avoids three dependencies for a handful of simple widgets. The mobile bottom bar has Home, Subscriptions, Calendar, Analytics and Add; Reminders is a bell with an unread badge in the header (sidebar on desktop).
+
+## Stage 7 screens: behaviour worth knowing
+- **Calendar** is a `role="grid"` with a single tab stop (roving tabindex): arrow keys move by day/week, Home/End to the week's ends, Page Up/Down change month. Past days and months are not navigable/projected. Every day's accessible name states its renewals and trial endings. A truncation note appears when the API's 1000-entry cap applies (totals still cover everything).
+- **Reminders** never claim more than the server knows: email "Sent" reads "accepted by the email server"; skipped rows state the reason; with no SMTP configured the page says so and the email toggle is disabled; the verify button appears only when email is configured and the address is unverified, and 429/503 responses are shown as errors, never as "sent".
+- **Analytics** keeps three cards (Recorded / Recurring-cost estimate / Coming up) with their labels; a currency selector appears only when more than one currency exists.
+- Every new screen has loading, empty, error-with-retry states and an axe scan in the test suite.
 
 ## Known limitations
-- **No cross-subscription payments endpoint yet**, so the dashboard reads each subscription's payments (4 at a time, newest 60 subscriptions at most, with a visible notice when capped). Stage 7's analytics API should replace this.
-- List filters/sorts that use the saved billing date lag until the hourly roll-forward job runs; the per-row effective date is always exact.
+- List filters/sorts that use the saved billing date lag until the next scheduler cycle rolls them forward (at most `SCHEDULER_INTERVAL_SECONDS`, default 5 minutes, while the API runs); the per-row effective date is always exact.
 - Verified in jsdom (unit/component/integration, including a run against the real API and PostgreSQL) and spot-checked in a real Chromium at 320, 390, 820 and 1280 px. **There is no automated real-browser suite yet**; Playwright is planned for Stage 9.
 - Theme preference (dark/light/system) is applied but cannot be changed in the UI until the Stage 8 settings page.
 - Date inputs use the browser's native picker, so their text format follows the browser locale.

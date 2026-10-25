@@ -24,6 +24,9 @@ const PATHS = {
   clock: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 4v6l4 2',
   filter: 'M22 3H2l8 9.5V19l4 2v-8.5z',
   convert: 'M5 12h14m-6-6 6 6-6 6',
+  calendar: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+  chart: 'M3 3v18h18M7 15v3m5-8v8m5-12v12',
+  bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0',
 } as const;
 
 export type IconName = keyof typeof PATHS;

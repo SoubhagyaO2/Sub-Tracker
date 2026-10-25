@@ -23,6 +23,7 @@ import { usePageTitle, useToast, useToday } from '../state/ui';
 const FIELDS = [
   'name', 'category', 'amountMinor', 'currency', 'billingFrequency', 'status', 'nextBillingDate', 'trialEndDate', 'startDate', 'anchorDate',
   'paymentMethodLabel', 'websiteUrl', 'cancellationUrl', 'notes', 'usageLevel', 'icon', 'priceChangeEffectiveOn', 'priceChangeNote',
+  'remindersEnabled', 'reminderLeadDays',
 ];
 
 interface FormProps {
@@ -35,6 +36,7 @@ interface FormProps {
 
 function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormProps) {
   const today = useToday();
+  const { preferences } = useSession();
   const toast = useToast();
   const invalidate = useInvalidate();
   const [v, setV] = useState(initial);
@@ -187,6 +189,22 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
         <TextArea name="notes" label="Notes" optional value={v.notes} onChange={(e) => set('notes', e.target.value)} error={errors.notes} maxLength={2000} />
         <SelectField name="usageLevel" label="How often do you use it?" optional value={v.usageLevel} onChange={(e) => set('usageLevel', e.target.value as SubscriptionFormValues['usageLevel'])} options={[{ value: '', label: 'Not set' }, ...USAGE_LEVELS.map((u) => ({ value: u, label: USAGE_LABEL[u] }))]} error={errors.usageLevel} hint="Only what you enter is ever shown as usage: SubCycle never guesses." />
         <TextField name="icon" label="Icon" optional value={v.icon} onChange={(e) => set('icon', e.target.value)} error={errors.icon} maxLength={16} hint="One emoji, e.g. 🎬. Otherwise the first letter is used." autoComplete="off" />
+      </Card>
+
+      <Card aria-labelledby="remind-h" className="space-y-4">
+        <h2 id="remind-h" className="text-base">Reminders</h2>
+        <CheckboxField name="remindersEnabled" label="Remind me before this renews" checked={v.remindersEnabled} onChange={(x) => set('remindersEnabled', x)} hint="Reminders follow the schedule you entered. Turn this off to get none for this subscription." />
+        <TextField
+          name="reminderLeadDays"
+          label="Days before"
+          optional
+          inputMode="numeric"
+          value={v.reminderLeadDays}
+          onChange={(e) => set('reminderLeadDays', e.target.value)}
+          error={errors.reminderLeadDays}
+          disabled={!v.remindersEnabled}
+          hint={`Leave blank to use your default (${preferences.reminderLeadDays} ${preferences.reminderLeadDays === 1 ? 'day' : 'days'}). 0 means on the day.`}
+        />
       </Card>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

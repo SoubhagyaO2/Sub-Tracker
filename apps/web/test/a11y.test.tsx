@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FakeServer, deferred, detailServer, fail, freezeTime, makeHistory, makePayment, makeSub, page, renderApp, signedInServer } from './helpers';
+import { FakeServer, deferred, detailServer, fail, freezeTime, emailSession, estCategory, estTop, makeAnalytics, makeHistory, makePayment, makeReminder, makeSub, ok, page, renderApp, signedInServer } from './helpers';
 
 beforeEach(() => {
   freezeTime();
@@ -57,7 +57,7 @@ describe('automated accessibility checks (axe-core)', () => {
   it('dashboard with data (several currencies, charts, renewals, trials)', async () => {
     signedInServer()
       .on('GET', '/api/subscriptions', page(richSubs, richSubs.length, 1, 100))
-      .on('GET', '/api/subscriptions/:id/payments', (_r, p) => page(p.id === 'a' ? [makePayment({ subscriptionId: 'a' })] : [], p.id === 'a' ? 1 : 0, 1, 100));
+      .on('GET', '/api/analytics/spending', ok(makeAnalytics([makePayment({ subscriptionId: 'a' })])));
     renderApp('/');
     await screen.findByRole('img', { name: /Recorded payments/ });
     await expectAccessible('dashboard');
@@ -66,7 +66,7 @@ describe('automated accessibility checks (axe-core)', () => {
   it('dashboard: the chart table view', async () => {
     signedInServer()
       .on('GET', '/api/subscriptions', page(richSubs, richSubs.length, 1, 100))
-      .on('GET', '/api/subscriptions/:id/payments', (_r, p) => page(p.id === 'a' ? [makePayment({ subscriptionId: 'a' })] : [], p.id === 'a' ? 1 : 0, 1, 100));
+      .on('GET', '/api/analytics/spending', ok(makeAnalytics([makePayment({ subscriptionId: 'a' })])));
     const { user } = renderApp('/');
     await user.click(await screen.findByRole('button', { name: 'View as table' }));
     await screen.findByRole('table');
@@ -252,3 +252,70 @@ describe('page structure and keyboard navigation', () => {
   });
 });
 
+
+describe('stage 7 pages (axe-core)', () => {
+  it('calendar: month grid with renewals and a trial', async () => {
+    signedInServer().on('GET', '/api/calendar/renewals', ok(
+      [
+        { date: '2030-01-20', kind: 'renewal', subscriptionId: 'a', name: 'Netflix', category: 'video', icon: null, amountMinor: 64900, currency: 'INR', billingFrequency: 'monthly', status: 'active' },
+        { date: '2030-01-22', kind: 'trial_end', subscriptionId: 'd', name: 'Free trial', category: 'video', icon: null, amountMinor: 29900, currency: 'INR', billingFrequency: 'monthly', status: 'trial' },
+      ],
+      { from: '2030-01-15', to: '2030-01-31', today: '2030-01-15', timeZone: 'Asia/Kolkata', kind: 'projection', total: 2, truncated: false, totals: [{ currency: 'INR', renewalCount: 1, amountMinor: 64900 }], trialEndCount: 1 },
+    ));
+    renderApp('/calendar');
+    await screen.findByRole('grid');
+    await screen.findByText(/free trial ends/);
+    await expectAccessible('calendar month');
+  });
+
+  it('calendar: list view and empty state', async () => {
+    signedInServer().on('GET', '/api/calendar/renewals', ok([], { from: TODAY_, to: '2030-01-22', today: TODAY_, timeZone: 'Asia/Kolkata', kind: 'projection', total: 0, truncated: false, totals: [], trialEndCount: 0 }));
+    const { user } = renderApp('/calendar');
+    await user.click(await screen.findByRole('button', { name: '7 days' }));
+    await screen.findByText('Nothing in the next 7 days');
+    await expectAccessible('calendar list empty');
+  });
+
+  it('analytics with several currencies', async () => {
+    const data = makeAnalytics([makePayment({ paidOn: '2030-01-10' }), makePayment({ paidOn: '2030-01-05', currency: 'USD', amountMinor: 1000 })]);
+    data.estimate.currencies = [{ currency: 'INR', subscriptionCount: 1, monthlyEquivalentMinor: 64900, annualizedMinor: 778800, byCategory: [estCategory('video', 64900, 100)], top: [estTop('a', 'Netflix', 64900)] }];
+    data.projection.windows = [{ days: 7, to: '2030-01-22', currencies: [{ currency: 'INR', renewalCount: 1, amountMinor: 64900 }], trialEndCount: 0 }];
+    signedInServer().on('GET', '/api/analytics/spending', ok(data));
+    renderApp('/analytics');
+    await screen.findByRole('heading', { name: 'Recorded spending' });
+    await expectAccessible('analytics');
+  });
+
+  it('analytics empty', async () => {
+    signedInServer();
+    renderApp('/analytics');
+    await screen.findByText('Nothing to analyse yet');
+    await expectAccessible('analytics empty');
+  });
+
+  it('reminders: inbox, log with skipped reasons, settings (email unconfigured)', async () => {
+    signedInServer().on('GET', '/api/reminders', ok(
+      [makeReminder(), makeReminder({ channel: 'email', status: 'skipped', skipReason: 'smtp_not_configured', sentAt: null })],
+      { page: 1, pageSize: 25, total: 2, unread: 1 },
+    ));
+    renderApp('/reminders');
+    await screen.findAllByText(/Not sent:/);
+    await expectAccessible('reminders');
+  });
+
+  it('reminders: email configured but unverified', async () => {
+    signedInServer().on('GET', '/api/auth/me', ok(emailSession(false)));
+    renderApp('/reminders');
+    await screen.findByRole('button', { name: 'Send verification email' });
+    await expectAccessible('reminders unverified');
+  });
+
+  it('verify-email landing states', async () => {
+    new FakeServer().on('GET', '/api/auth/me', fail(401, 'UNAUTHENTICATED', 'x')).on('POST', '/api/account/email-verification/confirm', fail(400, 'INVALID_TOKEN', 'bad')).install();
+    renderApp('/verify-email?token=zzz');
+    await screen.findByText(/invalid or has expired/);
+    await expectAccessible('verify email invalid');
+  });
+});
+
+const TODAY_ = '2030-01-15';
