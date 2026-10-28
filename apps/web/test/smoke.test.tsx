@@ -241,16 +241,14 @@ describe('real API + database: account settings', () => {
     // preferences: persisted by the server, applied to the document
     await user.click(screen.getAllByRole('button', { name: /Account menu/ })[0]!);
     await user.click(screen.getAllByRole('link', { name: 'Settings' }).find((l) => l.closest('#account-menu'))!);
-    const prefs = await section('Appearance and region');
-    await user.click(prefs.getByRole('radio', { name: 'Light' }));
+    const prefs = await section('Region');
     await user.selectOptions(prefs.getByLabelText('Preferred currency'), 'USD');
     await user.selectOptions(prefs.getByLabelText('Time zone'), 'Pacific/Auckland');
     await user.click(prefs.getByRole('button', { name: 'Save settings' }));
     expect(await screen.findByText('Settings saved.', {}, { timeout: 15000 })).toBeInTheDocument();
-    expect(document.documentElement.dataset.theme).toBe('light');
     const pool = new pg.Pool({ connectionString: DB_URL, max: 1 });
-    const saved = await pool.query("SELECT theme, currency, timezone FROM user_preferences WHERE user_id = (SELECT id FROM users WHERE email = $1)", [email]);
-    expect(saved.rows[0]).toEqual({ theme: 'light', currency: 'USD', timezone: 'Pacific/Auckland' });
+    const saved = await pool.query("SELECT currency, timezone FROM user_preferences WHERE user_id = (SELECT id FROM users WHERE email = $1)", [email]);
+    expect(saved.rows[0]).toEqual({ currency: 'USD', timezone: 'Pacific/Auckland' });
 
     // password: wrong current is refused in place; the right one succeeds and the OLD password no longer signs in
     const pw = await section('Change password');
@@ -273,7 +271,6 @@ describe('real API + database: account settings', () => {
     await user.type(screen.getByLabelText('Password'), newPassword);
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await screen.findByRole('heading', { name: 'Settings', level: 1 }, { timeout: 15000 }); // sign-in returns to where the session ended
-    expect(document.documentElement.dataset.theme).toBe('light'); // the saved theme came back with the new session
 
     // deletion: password + typed email, then the account is really gone
     await user.click((await section('Delete account')).getByRole('button', { name: 'Delete account…' }));

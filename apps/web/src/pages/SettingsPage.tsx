@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { CURRENCY_CODES, type CurrencyCode, PASSWORD_MAX, PASSWORD_MIN, isValidTimeZone, type PreferencesDto, type UpdatePreferencesInput } from '@subcycle/shared';
+import { CURRENCY_CODES, type CurrencyCode, PASSWORD_MAX, PASSWORD_MIN, isValidTimeZone, type UpdatePreferencesInput } from '@subcycle/shared';
 import { ApiError } from '../api/client';
 import { accountApi, preferencesApi } from '../api/endpoints';
 import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
 import { Card } from '../components/ui/display';
-import { ErrorSummary, SegmentedField, SelectField, TextField, focusFirstError } from '../components/ui/Field';
+import { ErrorSummary, SelectField, TextField, focusFirstError } from '../components/ui/Field';
 import { browserTimeZone } from '../lib/dates';
 import { mapApiError, type FieldErrors } from '../lib/forms';
 import { ACCOUNT_DELETED_NOTICE, useAuth, useSession } from '../state/auth';
@@ -16,20 +16,17 @@ import { usePageTitle, useToast } from '../state/ui';
 function SectionHeader({ id, title, children }: { id: string; title: string; children?: string }) {
   return (
     <>
-      <h2 id={id} className="text-base">{title}</h2>
-      {children ? <p className="mb-4 mt-1 text-xs text-muted">{children}</p> : <div className="mb-4" />}
+      <div className="-mx-4 mb-4 border-b border-line px-4 pb-3 sm:-mx-6 sm:px-6">
+        <h2 id={id} className="text-lg">{title}</h2>
+        {children ? <p className="mt-1 text-xs text-muted">{children}</p> : null}
+      </div>
     </>
   );
 }
 
 // ───────────── appearance + region ─────────────
 
-const THEMES = [
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' },
-  { value: 'system', label: 'Match my device' },
-];
-const PREF_FIELDS = ['theme', 'currency', 'timezone'];
+const PREF_FIELDS = ['currency', 'timezone'];
 
 function zoneChoices(current: string): string[] {
   const supported = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
@@ -57,7 +54,6 @@ function PreferencesCard() {
   const { setPreferences } = useAuth();
   const invalidate = useInvalidate();
   const toast = useToast();
-  const [theme, setTheme] = useState<string>(preferences.theme);
   const [currency, setCurrency] = useState(preferences.currency);
   const [timezone, setTimezone] = useState(preferences.timezone);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -81,7 +77,6 @@ function PreferencesCard() {
       return;
     }
     const patch: UpdatePreferencesInput = {};
-    if (theme !== preferences.theme) patch.theme = theme as PreferencesDto['theme'];
     if (currency !== preferences.currency) patch.currency = currency as CurrencyCode;
     if (timezone !== preferences.timezone) patch.timezone = timezone;
     if (Object.keys(patch).length === 0) {
@@ -106,10 +101,9 @@ function PreferencesCard() {
 
   return (
     <Card aria-labelledby="prefs-h">
-      <SectionHeader id="prefs-h" title="Appearance and region">Applied everywhere you sign in.</SectionHeader>
+      <SectionHeader id="prefs-h" title="Region">Applied everywhere you sign in.</SectionHeader>
       <form onSubmit={save} noValidate className="space-y-5">
         <ErrorSummary errors={errors} formError={formError} />
-        <SegmentedField name="theme" legend="Theme" value={theme} onChange={setTheme} options={THEMES} />
         <SelectField
           name="currency"
           label="Preferred currency"
@@ -415,7 +409,7 @@ export function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl">Settings</h1>
-        <p className="mt-1 text-sm text-muted">Your account, how SubCycle looks, and where it thinks you are.</p>
+        <p className="mt-1 text-sm text-muted">Your account, your region, and your password.</p>
       </div>
       <PreferencesCard />
       <RemindersSummary />
