@@ -1,3 +1,4 @@
+import { BRAND_ICONS } from '../../lib/brandIcons.generated';
 import type { ReactNode } from 'react';
 import type { Category, DateOnly, SubscriptionDto, SubscriptionStatus } from '@subcycle/shared';
 import { ApiError } from '../../api/client';
@@ -93,9 +94,31 @@ export function StatusBadge({ status }: { status: SubscriptionStatus }) {
   );
 }
 
-/** Emoji / letter-avatar icon. No brand logos are used or fetched. */
+/** Brand logos shown on a light tile in the logo's own colour (very light brand colours fall back to near-black for contrast). */
+const readableFill = (hex: string): string => {
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.75 ? '#111310' : `#${hex}`;
+};
+
+/**
+ * Service icon: a built-in brand logo (icon kind "glyph", bundled with the app: nothing is fetched from anywhere), an emoji,
+ * or a letter tile. Always decorative: the service name is shown next to it.
+ */
 export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<SubscriptionDto, 'name' | 'icon' | 'category'>; size?: 'md' | 'lg' }) {
   const box = size === 'lg' ? 'h-14 w-14 text-2xl' : 'h-10 w-10 text-lg';
+  const brand = subscription.icon?.kind === 'glyph' ? BRAND_ICONS[subscription.icon.value] : undefined;
+  if (brand) {
+    return (
+      <span aria-hidden="true" data-logo={subscription.icon!.value} className={`flex ${box} shrink-0 items-center justify-center rounded-control bg-[#F3F4EE] ring-1 ring-black/10`}>
+        <svg viewBox="0 0 24 24" className="h-[58%] w-[58%]" fill={readableFill(brand.hex)} focusable="false">
+          <path d={brand.path} />
+        </svg>
+      </span>
+    );
+  }
   if (subscription.icon?.kind === 'emoji') {
     return (
       <span aria-hidden="true" className={`flex ${box} shrink-0 items-center justify-center rounded-control bg-raised`}>

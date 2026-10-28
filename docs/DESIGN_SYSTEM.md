@@ -124,7 +124,7 @@ All local, composed from Radix UI primitives where behaviour is non-trivial (Dia
 | **KindTag** | `Estimate` / `Projection` / `Recorded` — tiny pill with tooltip definition (§6.4) |
 | **Card** | `surface`, radius 20, optional header (H2 + action) |
 | **KPICard** | Overline label, display figure (lime), sub-line (e.g. "≈ ₹X /yr"), `KindTag` |
-| **ServiceIcon** | 40 px tile radius 12: glyph / emoji / **letter-avatar fallback** (category-tinted background; initial; `aria-hidden`, name always adjacent as text) |
+| **ServiceIcon** | 40 px tile radius 12: **bundled brand logo** (glyph key; light `#F3F4EE` tile, brand colour, near-black when the brand colour is very light) / emoji / **letter-avatar fallback** (category-tinted background; initial; `aria-hidden`, name always adjacent as text) |
 | **SubscriptionRow** | Icon · name · category · amount + `/mo` etc. · next date · status badge; whole row is one link; keyboard-focusable |
 | **RenewalItem** | Icon · name · amount · "in 3 days — Sat 25 Oct" · frequency chip; trial items show "Trial ends" in warning with icon |
 | **Dialog / ConfirmDialog** | Focus trap, ESC closes, returns focus; destructive confirm requires explicit verb button ("Delete permanently") and states consequence |
@@ -240,7 +240,7 @@ Accessibility for every chart: `role="img"` + `aria-label` summary sentence ("Re
 | Usage insight, none entered | "Rate how often you use each subscription to see which ones you barely use." | Review subscriptions |
 
 ## 10. Iconography & imagery
-`lucide-react` (ISC) for UI icons, 20 px default, 1.75 stroke, `aria-hidden` when adjacent to text. No brand logos (§SPEC 4.11). Wordmark: "SubCycle" set in Inter 600 with a lime cycle glyph (circular arrow in a ring) — simple SVG authored in-house.
+`lucide-react` (ISC) for UI icons, 20 px default, 1.75 stroke, `aria-hidden` when adjacent to text. Brand logos are bundled Simple Icons artwork for services in the built-in list (§SPEC 4.11), never fetched. Wordmark: "SubCycle" set in Inter 600 with a lime cycle glyph (circular arrow in a ring) — simple SVG authored in-house.
 
 ## 11. Implementation notes (Stage 6)
 - Tailwind theme extends colours with CSS variables (`rgb(var(--…) / <alpha>)` pattern), so dark/light/system switch by `data-theme` on `<html>` plus `prefers-color-scheme` for `system`; initial theme applied by a tiny inline-free script alternative (cookie/`localStorage` read before paint via an external `/theme-init.js` to satisfy strict CSP).

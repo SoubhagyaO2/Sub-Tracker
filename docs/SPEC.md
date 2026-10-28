@@ -163,11 +163,11 @@ trial ──convert──▶ active ──pause──▶ paused
 Fixed enum for v1 (enables stable charts/colours): `entertainment`, `music`, `video`, `gaming`, `productivity`, `cloud_storage`, `ai_tools`, `news_reading`, `fitness_health`, `education`, `shopping`, `utilities`, `finance`, `other`. (User-defined categories deferred.)
 
 ### 4.11 Icons / logos
-- No scraped or unofficial brand logos. v1 icon options: (a) built-in generic glyph set (lucide, ISC-licensed) chosen by category, (b) user-picked emoji, (c) deterministic **letter avatar** fallback (first letter on a category-tinted tile).
-- Stored as `icon_kind ∈ glyph | emoji | none` + `icon_value`. URL/uploaded logos are deferred because they leak the viewer's IP to third parties and need content validation. Brand logos may be added later only from sources with verified usage rights.
+- **Brand logos (changed after v1 planning, at the product owner's request):** about 54 well-known services show their logo. The artwork is bundled with the app from the Simple Icons set (CC0-1.0, a community-maintained collection; **not** supplied by the brands) and is stored as `icon_kind = glyph` with the logo key (`netflix`) as `icon_value`. Logos are trademarks of their owners, shown only to identify the service the user tracks, with no claim of affiliation or endorsement. Nothing is scraped, hot-linked or fetched at run time (no third party learns what a user tracks). Services without a bundled logo (about 38 of the list, including Disney+, Hulu, Amazon Prime, Microsoft 365 and Adobe, which the set does not carry) get the letter tile.
+- Other icon options: user-picked emoji, and a deterministic **letter avatar** fallback. Stored as `icon_kind ∈ glyph | emoji | none` + `icon_value`. URL/uploaded logos are deferred because they leak the viewer's IP to third parties and need content validation.
 
 ### 4.11b Quick start (type-ahead and pasted links)
-Creating a subscription can start from a built-in list of well-known services or a pasted link. These only suggest a **name, category, website link and emoji**. SubCycle never suggests or fills a price, plan, currency, billing frequency or date, never claims a suggestion is verified, and never overwrites a field the user already filled. Pasted links are looked up server-side under the protections in SECURITY.md.
+Creating a subscription can start from a built-in list of well-known services or a pasted link. These only suggest a **name, category, website link and (where one is bundled) logo**. SubCycle never suggests or fills a price, plan, currency, billing frequency or date, never claims a suggestion is verified, and never overwrites a field the user already filled. Pasted links are looked up server-side under the protections in SECURITY.md.
 
 ### 4.12 Payment method label
 Free-text label ≤ 40 chars ("HDFC card ••12"). The API rejects values that look like a PAN (13–19 digits after stripping separators, Luhn-valid) or a CVV pattern, and the UI hint says "Don't enter card numbers".
@@ -292,4 +292,4 @@ Items marked *(addition)* extend the endpoint list in the brief to support state
 1. **FX:** v1 shows per-currency totals, no conversion. OK?
 2. **Email verification** gating email reminders (§4.7) — accepted as proposed?
 3. **No password reset in v1** (§2) — acceptable?
-4. **Icons:** glyph/emoji/letter only (no URL/uploaded logos) in v1 (§4.11) — acceptable?
+4. **Icons:** bundled brand logos, emoji and letter tiles only (no URL/uploaded logos) in v1 (§4.11) — acceptable?

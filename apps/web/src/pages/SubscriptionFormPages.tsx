@@ -5,7 +5,7 @@ import { linkPreviewApi, subscriptionsApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { Button } from '../components/ui/Button';
 import { ServiceNameField } from '../components/ServiceNameField';
-import { Card, ErrorState, LoadingRegion, Skeleton, EmptyState } from '../components/ui/display';
+import { Card, ErrorState, LoadingRegion, Skeleton, EmptyState, ServiceIcon } from '../components/ui/display';
 import { CheckboxField, DateField, ErrorSummary, MoneyField, SegmentedField, SelectField, TextArea, TextField, focusFirstError } from '../components/ui/Field';
 import { CATEGORY_LABEL, FREQUENCY_LABEL, USAGE_LABEL } from '../lib/labels';
 import { mapApiError, type FieldErrors } from '../lib/forms';
@@ -13,6 +13,7 @@ import {
   buildCreatePayload,
   buildUpdatePayload,
   emptyValues,
+  iconFromText,
   valuesFromSubscription,
   type SubscriptionFormValues,
 } from '../lib/subscriptionForm';
@@ -73,7 +74,7 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
   const sentence = (parts: string[]) => (parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? 'nothing new'));
 
   function pickService(s: ServiceTemplate) {
-    applySuggestion(s, true);
+    applySuggestion({ name: s.name, websiteUrl: s.websiteUrl, category: s.category, icon: s.logo }, true);
     setQuickNote(`Filled in the details for ${s.name}. Now add the price and your next billing date: SubCycle never fills those in.`);
   }
 
@@ -95,7 +96,7 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
     }
     const known = host ? serviceForHostname(host) : null;
     if (known) {
-      const filled = applySuggestion({ name: known.name, websiteUrl: known.websiteUrl, category: known.category, icon: known.icon }, false);
+      const filled = applySuggestion({ name: known.name, websiteUrl: known.websiteUrl, category: known.category, icon: known.logo }, false);
       setQuickNote(`Recognised ${known.name}. Filled in ${sentence(filled)}. Now add the price and your next billing date.`);
       return;
     }
@@ -297,7 +298,12 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
         <TextField name="cancellationUrl" label="Cancellation page" optional type="url" value={v.cancellationUrl} onChange={(e) => set('cancellationUrl', e.target.value)} error={errors.cancellationUrl} placeholder="https://" hint="The provider’s official page. Cancelling happens on their site; you record it here afterwards." autoComplete="off" />
         <TextArea name="notes" label="Notes" optional value={v.notes} onChange={(e) => set('notes', e.target.value)} error={errors.notes} maxLength={2000} />
         <SelectField name="usageLevel" label="How often do you use it?" optional value={v.usageLevel} onChange={(e) => set('usageLevel', e.target.value as SubscriptionFormValues['usageLevel'])} options={[{ value: '', label: 'Not set' }, ...USAGE_LEVELS.map((u) => ({ value: u, label: USAGE_LABEL[u] }))]} error={errors.usageLevel} hint="Only what you enter is ever shown as usage: SubCycle never guesses." />
-        <TextField name="icon" label="Icon" optional value={v.icon} onChange={(e) => set('icon', e.target.value)} error={errors.icon} maxLength={16} hint="One emoji, e.g. 🎬. Otherwise the first letter is used." autoComplete="off" />
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <TextField name="icon" label="Icon" optional value={v.icon} onChange={(e) => set('icon', e.target.value)} error={errors.icon} maxLength={16} hint="One emoji, or the name of a built-in logo such as netflix (picking a service fills this in). Otherwise the first letter is used." autoComplete="off" />
+          </div>
+          <div className="pt-7"><ServiceIcon subscription={{ name: v.name, category: v.category, icon: iconFromText(v.icon) }} /></div>
+        </div>
       </Card>
 
       <Card aria-labelledby="remind-h" className="space-y-4">

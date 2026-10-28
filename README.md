@@ -40,6 +40,10 @@ npm run test:e2e                    # builds, starts the API and web servers its
 
 See [docs/TESTING.md](docs/TESTING.md) for environment variables, safety rules and CI, and [docs/RELEASE.md](docs/RELEASE.md) for production readiness. `node scripts/verify-backup-restore.mjs` proves a dump/restore round trip on throwaway databases.
 
+## Third-party artwork
+
+Brand logos shown for well-known services come from [Simple Icons](https://simpleicons.org) (CC0-1.0, dev dependency, bundled at build time; nothing is loaded from the network). They are trademarks of their respective owners and appear only to identify the service a user tracks; SubCycle is not affiliated with or endorsed by any of them. See [docs/FRONTEND.md](docs/FRONTEND.md#brand-logos).
+
 ## Documentation
 
 [SPEC](docs/SPEC.md) · [API](docs/API.md) · [DATA_MODEL](docs/DATA_MODEL.md) · [FRONTEND](docs/FRONTEND.md) · [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) · [SECURITY](docs/SECURITY.md) · [OPERATIONS](docs/OPERATIONS.md) · [RELEASE](docs/RELEASE.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [TESTING](docs/TESTING.md)

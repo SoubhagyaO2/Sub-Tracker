@@ -57,7 +57,8 @@ describe('service name suggestions (built-in list)', () => {
     expect(name).toHaveValue('Netflix');
     expect(screen.getByLabelText('Category')).toHaveValue('video');
     expect(screen.getByLabelText('Website (optional)')).toHaveValue('https://www.netflix.com');
-    expect(screen.getByLabelText('Icon (optional)')).toHaveValue('🎬');
+    expect(screen.getByLabelText('Icon (optional)')).toHaveValue('netflix');
+    expect(document.querySelector('[data-logo="netflix"]')).not.toBeNull(); // the Netflix logo is previewed next to the field
     expect(name).toHaveAttribute('aria-expanded', 'false');
     expect(s.to('POST', '/api/subscriptions')).toHaveLength(0);
     expect(quick().getByRole('status')).toHaveTextContent(/Filled in the details for Netflix\. Now add the price and your next billing date/);
@@ -129,7 +130,7 @@ describe('service name suggestions (built-in list)', () => {
     await user.click(screen.getByRole('button', { name: 'Add subscription' }));
     await waitFor(() => expect(s.to('POST', '/api/subscriptions')).toHaveLength(1));
     expect(s.last('POST', '/api/subscriptions')!.body).toMatchObject({
-      name: 'Spotify', category: 'music', websiteUrl: 'https://www.spotify.com', icon: { kind: 'emoji', value: '🎧' }, amountMinor: 11900, nextBillingDate: '2030-02-10',
+      name: 'Spotify', category: 'music', websiteUrl: 'https://www.spotify.com', icon: { kind: 'glyph', value: 'spotify' }, amountMinor: 11900, nextBillingDate: '2030-02-10',
     });
   });
 
