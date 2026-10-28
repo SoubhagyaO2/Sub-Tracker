@@ -6,8 +6,9 @@ import { Button } from '../components/ui/Button';
 import { Card, CardHeader, DateText, EmptyState, ErrorState, KindTag, LoadingRegion, Money, ServiceIcon, Skeleton } from '../components/ui/display';
 import { Icon } from '../components/ui/Icon';
 import { firstOfMonth, formatMonthTitle, lastOfMonth, mondayIndex, monthOf, monthWeeks, shiftMonth, weekdayHeadings } from '../lib/calendarGrid';
+import { BRAND_ICONS } from '../lib/brandIcons.generated';
 import { formatDate } from '../lib/dates';
-import { FREQUENCY_UNIT } from '../lib/labels';
+import { CATEGORY_SLOT, FREQUENCY_UNIT } from '../lib/labels';
 import { useApi } from '../state/data';
 import { usePageTitle, useToday } from '../state/ui';
 
@@ -17,6 +18,13 @@ function group(items: CalendarOccurrence[]): Map<DateOnly, CalendarOccurrence[]>
   const byDate = new Map<DateOnly, CalendarOccurrence[]>();
   for (const o of items) byDate.set(o.date, [...(byDate.get(o.date) ?? []), o]);
   return byDate;
+}
+
+/** A picture or bundled logo can sit inside a day cell; letters and emoji would add visible text the button's label does not contain, so those get a coloured dot. */
+function DayMark({ o }: { o: CalendarOccurrence }) {
+  const hasImage = o.icon?.kind === 'image' || (o.icon?.kind === 'glyph' && Boolean(BRAND_ICONS[o.icon.value]));
+  if (hasImage) return <ServiceIcon subscription={o} size="xs" />;
+  return <span className="block h-2 w-2 rounded-full" style={{ background: `var(--cat-${CATEGORY_SLOT[o.category as keyof typeof CATEGORY_SLOT] ?? 7})` }} />;
 }
 
 function OccurrenceRow({ o }: { o: CalendarOccurrence }) {
@@ -192,12 +200,16 @@ export function CalendarPage() {
                                 aria-label={label}
                                 aria-current={d === today ? 'date' : undefined}
                                 onClick={() => setSelected(d)}
-                                className={`flex h-12 w-full flex-col items-center justify-center rounded-control text-sm tnum sm:h-14 ${isSelected ? 'bg-accent-grad text-accent-fg' : past ? 'text-subtle hover:bg-raised' : 'text-fg hover:bg-raised'} ${d === today && !isSelected ? 'ring-1 ring-accent-text' : ''}`}
+                                className={`flex h-16 w-full flex-col items-center justify-center rounded-control text-sm tnum sm:h-[4.5rem] ${isSelected ? 'bg-accent-grad text-accent-fg' : past ? 'text-subtle hover:bg-raised' : 'text-fg hover:bg-raised'} ${d === today && !isSelected ? 'ring-1 ring-accent-text' : ''}`}
                               >
                                 <span>{Number(d.slice(8))}</span>
                                 {items.length > 0 ? (
-                                  <span aria-hidden="true" className={`mt-0.5 flex h-1.5 items-center gap-0.5 ${isSelected ? 'text-accent-fg' : 'text-accent-text'}`}>
-                                    {items.slice(0, 3).map((o, i) => <span key={i} className={`h-1.5 w-1.5 rounded-full ${o.kind === 'trial_end' ? 'border border-current' : 'bg-current'}`} />)}
+                                  <span aria-hidden="true" className="mt-1 flex items-center justify-center -space-x-1.5">
+                                    {items.slice(0, 3).map((o, i) => (
+                                      <span key={i} className={`rounded-full ${o.kind === 'trial_end' ? 'outline outline-2 outline-dashed outline-accent-text' : 'ring-2 ring-surface'}`}>
+                                        <DayMark o={o} />
+                                      </span>
+                                    ))}
                                   </span>
                                 ) : null}
                               </button>
@@ -208,7 +220,6 @@ export function CalendarPage() {
                     ))}
                   </tbody>
                 </table>
-                <p className="mt-3 text-xs text-muted">Use the arrow keys to move between days, Page Up and Page Down to change month. Filled dots are renewals; hollow dots are free-trial endings.</p>
               </Card>
 
               <Card aria-labelledby="cal-day-h">
