@@ -130,7 +130,7 @@ export function DashboardPage() {
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-muted">{dateLine}</p>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{greeting}</h1>
-          <p className="mt-2 text-sm text-muted">Here’s your subscription picture. Figures labelled Estimate or Projection are calculated, not money you paid.</p>
+          <p className="mt-2 text-sm text-muted">Here’s your subscription picture. Totals and forecasts here are calculated, not money you paid.</p>
         </div>
         <LinkButton to="/subscriptions/new" variant="primary" className="hidden sm:inline-flex"><Icon name="plus" className="h-4 w-4" />Add subscription</LinkButton>
       </div>
