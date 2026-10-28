@@ -55,9 +55,9 @@ describe('calendar page', () => {
   it('marks days with renewals in the grid and lists the selected day', async () => {
     calendarServer([occ({ name: 'Netflix' }), occ({ subscriptionId: 's2', name: 'Spotify', amountMinor: 11900 })]);
     const { user } = renderApp('/calendar');
-    const day = await screen.findByRole('button', { name: /20 Jan.*2 renewals/ });
+    const day = await screen.findByRole('button', { name: /(20 Jan|Jan 20).*2 renewals/ });
     await user.click(day);
-    const panel = within(screen.getByRole('heading', { name: /Sun, 20 Jan/, level: 2 }).closest('section')!);
+    const panel = within(screen.getByRole('heading', { name: /Sun, (20 Jan|Jan 20)/, level: 2 }).closest('section')!);
     expect(panel.getByText('Netflix')).toBeInTheDocument();
     expect(panel.getByText('Spotify')).toBeInTheDocument();
     expect(panel.getAllByText('Renewal', { exact: false }).length).toBeGreaterThanOrEqual(2);
