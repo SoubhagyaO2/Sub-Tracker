@@ -8,7 +8,7 @@ Read [RELEASE.md](RELEASE.md) for the reasoning behind these settings and [OPERA
 
 | # | Decision | Why it matters |
 |---|---|---|
-| 1 | **Account recovery.** There is no password reset and no email change. A user who forgets their password and has no session is locked out; only an operator can intervene in the database. | Acceptable for a handful of invited people you can help by hand; not acceptable for strangers. |
+| 1 | **Account recovery.** Password reset by email exists but only works once an email provider is configured and verified. Until then an operator issues one-time links with `admin:reset-link` (OPERATIONS.md). There is no email change. | Fine for a handful of invited people you can help; plan an email provider before inviting strangers. |
 | 2 | **Who may register.** Registration is open to anyone who can reach the site (rate-limited only). | For a private deployment, restrict access at the proxy (IP allow-list, VPN, HTTP basic auth, or an SSO gateway) until you decide otherwise. There is no invite system. |
 | 3 | **Email.** Optional. Keep it off for the first deployment unless you will run the manual provider test in RELEASE.md. | Real SMTP delivery is not verified. |
 | 4 | **Backup retention.** Sets how long deleted accounts persist in backups. | A user who deletes their account is told backups may keep the data until they expire. Publish the number you choose. |
@@ -213,7 +213,7 @@ The API adds its own security headers to `/api/*` responses, so those responses 
 
 ## 7. Current limitations (state these to anyone you invite)
 
-- **No password reset, no email change.** Lost password with no session = operator intervention.
+- **Password reset needs email.** Without a provider, a lost password with no session = the operator runs `admin:reset-link` (OPERATIONS.md). There is no email change.
 - **Rate limits are per process** (in memory): they reset on restart and would multiply across instances. **Run one API instance only.**
 - **Single-instance topology.** The scheduler lock prevents overlapping cycles if a second process ever starts, but that was verified only within one process; rate limits and everything else assume one instance.
 - **Real SMTP is not verified.** Email stays off until the manual test in RELEASE.md passes.

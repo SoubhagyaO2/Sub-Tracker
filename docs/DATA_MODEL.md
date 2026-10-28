@@ -315,3 +315,11 @@ Changing `currency` or `timezone` updates one `user_preferences` row and nothing
 | `subscriptions.icon_image_version` | short random token, non-NULL exactly while a picture exists; part of the picture's URL so a changed picture is a new URL. Set and cleared in the same transaction as the picture row. |
 
 Transactions: *upload* = lock the subscription row, upsert the picture, set the version. *Remove* = delete the picture, clear the version. *PATCH icon* (logo / emoji / none) also deletes the picture. Pictures are at most 40 KB each, so they add little to backups; they are personal data and are deleted with the account like everything else (backups excepted, see OPERATIONS.md).
+
+## 12. Password reset (migration `0004_password_reset_tokens.sql`)
+
+| Object | Purpose |
+|---|---|
+| `password_reset_tokens` (`id`, `user_id` FK `ON DELETE CASCADE`, `token_hash bytea UNIQUE CHECK (octet_length = 32)`, `expires_at`, `used_at`, `created_at`) | one-hour, single-use reset tokens; only the SHA-256 of the token is stored. Index `prt_user_idx (user_id)` |
+
+Transactions: *request* = delete the user's unused tokens, delete tokens expired more than a day ago, insert the new hash. *Confirm* = lock the token row (`FOR UPDATE`), check the password policy, `UPDATE users SET password_hash`, delete all of the user's reset tokens, `DELETE FROM sessions WHERE user_id`; all in one transaction, so a refused password leaves the token usable.
