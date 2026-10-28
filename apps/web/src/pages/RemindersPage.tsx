@@ -111,7 +111,7 @@ function Inbox() {
                 <div className="min-w-0 text-sm">
                   <p className={r.readAt ? 'text-muted' : 'font-semibold'}>
                     <Link to={`/subscriptions/${r.subscriptionId}`} className="!text-inherit">{subject(r)}</Link> on {formatDate(r.targetDate)}
-                    {!r.readAt ? <span className="ml-2 rounded-full bg-accent px-2 py-0.5 align-middle text-xs font-semibold text-accent-fg">New</span> : null}
+                    {!r.readAt ? <span className="ml-2 rounded-full bg-accent-grad px-2 py-0.5 align-middle text-xs font-semibold text-accent-fg">New</span> : null}
                   </p>
                   <p className="text-xs text-muted">{r.leadDays === 0 ? 'On the day' : `${r.leadDays} ${r.leadDays === 1 ? 'day' : 'days'} before`} · delivered {fmt(r.sentAt!)}</p>
                 </div>

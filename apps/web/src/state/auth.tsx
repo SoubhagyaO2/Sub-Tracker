@@ -105,26 +105,3 @@ export function useSession(): Extract<AuthState, { status: 'authed' }> {
   if (state.status !== 'authed') throw new Error('useSession used while signed out');
   return state;
 }
-
-/** Applies the saved theme preference (dark / light / system) to the document. */
-export function useApplyTheme(theme: PreferencesDto['theme'] | undefined): void {
-  useEffect(() => {
-    const root = document.documentElement;
-    const apply = () => {
-      const resolved = theme === 'light' ? 'light' : theme === 'system' ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : 'dark';
-      root.dataset.theme = resolved;
-    };
-    apply();
-    if (theme !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, [theme]);
-}
-
-/** Keeps the document theme in step with the saved preference everywhere (signed-in pages and the sign-in pages alike). */
-export function ThemeSync(): null {
-  const { state } = useAuth();
-  useApplyTheme(state.status === 'authed' ? state.preferences.theme : 'dark');
-  return null;
-}

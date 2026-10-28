@@ -4,7 +4,7 @@ import { db } from '../support/env';
 import { expect, test, ymd, type Api } from '../support/fixtures';
 
 const WIDTHS = [320, 390, 820, 1280] as const;
-const THEMES = ['dark', 'light'] as const;
+const THEMES = ['dark'] as const;
 
 /** A busy account: two currencies, a very long name, a trial, a paused plan, payments, history and reminders. */
 async function seed(api: Api, addSub: (i: Record<string, unknown> & { name: string; amountMinor: number }) => Promise<{ id: string }>, userId: string) {
@@ -54,7 +54,6 @@ for (const theme of THEMES) {
       test.setTimeout(150_000);
       const account = await signUp();
       const ids = await seed(api, addSub as never, account.id);
-      expect((await api.patch('/api/preferences', { theme })).status).toBe(200);
       await page.setViewportSize({ width, height: width < 600 ? 800 : 900 });
 
       const problems: string[] = [];
@@ -196,13 +195,12 @@ for (const width of [320, 1280]) {
       expect((await api.get(`/api/subscriptions/${sub.id}`)).body.data.status).toBe('active');
     });
 
-    test('the dialogs themselves have no axe violations in either theme', async ({ page, signUp, addSub, api }) => {
+    test('the dialogs themselves have no axe violations in the dark theme', async ({ page, signUp, addSub }) => {
       await signUp();
       const sub = await addSub({ name: 'Netflix', amountMinor: 64900, nextBillingDate: ymd(5) });
       const problems: string[] = [];
       for (const theme of THEMES) {
-        await api.patch('/api/preferences', { theme });
-        await page.goto(`/subscriptions/${sub.id}`);
+          await page.goto(`/subscriptions/${sub.id}`);
         await page.getByRole('button', { name: 'Record payment' }).click();
         await expect(page.getByRole('dialog')).toBeVisible();
         for (const v of await runAxe(page)) problems.push(`payment dialog/${theme}: ${v.id}: ${v.help} -> ${v.targets.join(' | ')}`);

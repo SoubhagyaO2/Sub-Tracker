@@ -175,7 +175,7 @@ export function SubscriptionDetailPage() {
       </Card>
 
       <Card aria-labelledby="facts-h">
-        <h2 id="facts-h" className="mb-4 text-base">Billing</h2>
+        <h2 id="facts-h" className="-mx-4 mb-4 border-b border-line px-4 pb-3 text-lg sm:-mx-6 sm:px-6">Billing</h2>
         <dl className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
           <Fact label="Next renewal"><NextRenewal s={sub} today={today} /></Fact>
           <Fact label="Monthly equivalent">

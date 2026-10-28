@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { BRAND_ICONS } from '../../lib/brandIcons.generated';
+import { useState, type ReactNode } from 'react';
 import type { Category, DateOnly, SubscriptionDto, SubscriptionStatus } from '@subcycle/shared';
 import { ApiError } from '../../api/client';
 import { formatDate, relativeDay } from '../../lib/dates';
@@ -9,7 +10,7 @@ import { Icon, type IconName } from './Icon';
 
 export function Card({ children, className = '', as: Tag = 'section', ...rest }: { children: ReactNode; className?: string; as?: 'section' | 'div' | 'li'; 'aria-labelledby'?: string }) {
   return (
-    <Tag className={`min-w-0 rounded-card border border-line bg-surface p-4 sm:p-6 ${className}`} {...rest}>
+    <Tag className={`min-w-0 rounded-card bg-surface p-4 shadow-card sm:p-6 ${className}`} {...rest}>
       {children}
     </Tag>
   );
@@ -17,9 +18,9 @@ export function Card({ children, className = '', as: Tag = 'section', ...rest }:
 
 export function CardHeader({ id, title, tag, action }: { id: string; title: string; tag?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <div className="-mx-4 mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 pb-3 sm:-mx-6 sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 id={id} className="text-base">
+        <h2 id={id} className="text-lg">
           {title}
         </h2>
         {tag}
@@ -31,25 +32,23 @@ export function CardHeader({ id, title, tag, action }: { id: string; title: stri
 
 // ───────────── truth labels ─────────────
 
-const KIND_STYLE = {
-  recorded: 'border-accent-text/50 bg-accent-soft text-accent-text',
-  estimate: 'border-info/50 bg-info-soft text-info',
-  projection: 'border-info/50 bg-info-soft text-info',
-} as const;
 const KIND_HELP = {
   recorded: 'Based on payments you recorded. SubCycle does not verify them with your bank or the provider.',
   estimate: 'Calculated from current prices; may differ from what you were actually charged.',
   projection: 'Looking forward from today, assuming nothing changes.',
 } as const;
-export type Kind = keyof typeof KIND_STYLE;
+export type Kind = keyof typeof KIND_HELP;
 
-/** Marks every figure as Recorded, Estimate or Projection so the three are never confused. */
+/**
+ * Says whether a figure is Recorded, an Estimate or a Projection. It is not shown on screen (by design), but stays in the page for
+ * screen-reader users so the three are still never confused.
+ */
 export function KindTag({ kind }: { kind: Kind }) {
   return (
-    <span title={KIND_HELP[kind]} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${KIND_STYLE[kind]}`}>
-      {kind === 'recorded' ? 'Recorded' : kind === 'estimate' ? 'Estimate' : 'Projection'}
+    <>
+      <span className="sr-only">{kind === 'recorded' ? 'Recorded' : kind === 'estimate' ? 'Estimate' : 'Projection'}</span>
       <span className="sr-only">. {KIND_HELP[kind]}</span>
-    </span>
+    </>
   );
 }
 
@@ -93,9 +92,49 @@ export function StatusBadge({ status }: { status: SubscriptionStatus }) {
   );
 }
 
-/** Emoji / letter-avatar icon. No brand logos are used or fetched. */
-export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<SubscriptionDto, 'name' | 'icon' | 'category'>; size?: 'md' | 'lg' }) {
-  const box = size === 'lg' ? 'h-14 w-14 text-2xl' : 'h-10 w-10 text-lg';
+/** Brand logos shown on a light tile in the logo's own colour (very light brand colours fall back to near-black for contrast). */
+const readableFill = (hex: string): string => {
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.75 ? '#111310' : `#${hex}`;
+};
+
+/**
+ * Service icon: a built-in brand logo (icon kind "glyph", bundled with the app: nothing is fetched from anywhere), an emoji,
+ * or a letter tile. Always decorative: the service name is shown next to it.
+ */
+/** A picture the user attached: same-origin, small, cropped to the tile; falls back to the letter tile if it cannot load. */
+function PictureIcon({ src, box, fallback }: { src: string; box: string; fallback: ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <>{fallback}</>;
+  return (
+    <span aria-hidden="true" data-picture className={`flex ${box} shrink-0 items-center justify-center overflow-hidden rounded-control bg-raised`}>
+      <img src={src} alt="" loading="lazy" draggable={false} onError={() => setFailed(true)} className="h-full w-full object-cover" />
+    </span>
+  );
+}
+
+export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<SubscriptionDto, 'name' | 'icon' | 'category'>; size?: 'xs' | 'md' | 'lg' }) {
+  const box = size === 'lg' ? 'h-14 w-14 text-2xl' : size === 'xs' ? 'h-6 w-6 text-[11px]' : 'h-10 w-10 text-lg';
+  const brand = subscription.icon?.kind === 'glyph' ? BRAND_ICONS[subscription.icon.value] : undefined;
+  if (brand?.image) {
+    return (
+      <span aria-hidden="true" data-logo={subscription.icon!.value} className={`flex ${box} shrink-0 items-center justify-center rounded-control bg-[#F3F4EE] ring-1 ring-black/10`}>
+        <img src={brand.image} alt="" className="h-[62%] w-[62%] object-contain" draggable={false} />
+      </span>
+    );
+  }
+  if (brand?.path) {
+    return (
+      <span aria-hidden="true" data-logo={subscription.icon!.value} className={`flex ${box} shrink-0 items-center justify-center rounded-control bg-[#F3F4EE] ring-1 ring-black/10`}>
+        <svg viewBox="0 0 24 24" className="h-[58%] w-[58%]" fill={readableFill(brand.hex)} focusable="false">
+          <path d={brand.path} />
+        </svg>
+      </span>
+    );
+  }
   if (subscription.icon?.kind === 'emoji') {
     return (
       <span aria-hidden="true" className={`flex ${box} shrink-0 items-center justify-center rounded-control bg-raised`}>
@@ -104,7 +143,7 @@ export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<
     );
   }
   const slot = CATEGORY_SLOT[subscription.category as Category] ?? 7;
-  return (
+  const letter = (
     <span
       aria-hidden="true"
       className={`flex ${box} shrink-0 items-center justify-center rounded-control font-semibold`}
@@ -113,6 +152,8 @@ export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<
       {subscription.name.trim().charAt(0).toUpperCase() || '?'}
     </span>
   );
+  if (subscription.icon?.kind === 'image' && subscription.icon.value.startsWith('/api/')) return <PictureIcon src={subscription.icon.value} box={box} fallback={letter} />;
+  return letter;
 }
 
 // ───────────── states ─────────────

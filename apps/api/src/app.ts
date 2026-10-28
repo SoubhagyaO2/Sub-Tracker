@@ -13,6 +13,7 @@ import { loadSession } from './middleware/session.js';
 import { accountRouter } from './routes/account.js';
 import { authRouter } from './routes/auth.js';
 import { insightsRouters } from './routes/insights.js';
+import { linkPreviewRouter } from './routes/linkPreview.js';
 import { subscriptionsRouter } from './routes/subscriptions.js';
 
 export function createApp(deps: AppDeps): Express {
@@ -75,6 +76,7 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/auth', authRouter(deps));
   app.use('/api/account', accountRouter(deps));
   app.use('/api/subscriptions', subscriptionsRouter(deps));
+  app.use('/api/link-preview', linkPreviewRouter(deps));
   const insights = insightsRouters({ ...deps, logger });
   app.use('/api/calendar', insights.calendar);
   app.use('/api/analytics', insights.analytics);

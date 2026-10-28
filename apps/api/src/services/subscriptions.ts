@@ -54,8 +54,16 @@ export interface SubscriptionRow {
   reminders_enabled: boolean;
   icon_kind: 'none' | 'glyph' | 'emoji';
   icon_value: string | null;
+  /** Set only while the user has attached a picture (stored in subscription_icon_images). */
+  icon_image_version: string | null;
   created_at: Date;
   updated_at: Date;
+}
+
+/** The picture a user attached wins over a logo or emoji; its value is the (same-origin) URL it is served from. */
+export function iconDto(r: { id: string; icon_kind: 'none' | 'glyph' | 'emoji'; icon_value: string | null; icon_image_version: string | null }): SubscriptionDto['icon'] {
+  if (r.icon_image_version) return { kind: 'image', value: `/api/subscriptions/${r.id}/icon-image?v=${r.icon_image_version}` };
+  return r.icon_kind === 'none' || r.icon_value === null ? null : { kind: r.icon_kind, value: r.icon_value };
 }
 
 export function toSubscriptionDto(r: SubscriptionRow, today: DateOnly): SubscriptionDto {
@@ -84,7 +92,7 @@ export function toSubscriptionDto(r: SubscriptionRow, today: DateOnly): Subscrip
     usageLevel: r.usage_level,
     reminderLeadDays: r.reminder_lead_days,
     remindersEnabled: r.reminders_enabled,
-    icon: r.icon_kind === 'none' || r.icon_value === null ? null : { kind: r.icon_kind, value: r.icon_value },
+    icon: iconDto(r),
     allowedActions: allowedActions(r.status),
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
@@ -371,7 +379,14 @@ export async function updateSubscription(
         icon.value,
       ],
     );
-    return toSubscriptionDto(rows[0]!, ctx.today);
+    const updated = rows[0]!;
+    if (patch.icon !== undefined && updated.icon_image_version) {
+      // Choosing a logo, an emoji or "no icon" replaces a picture the user had attached.
+      await tx.query('DELETE FROM subscription_icon_images WHERE subscription_id = $1 AND user_id = $2', [id, userId]);
+      await tx.query('UPDATE subscriptions SET icon_image_version = NULL WHERE id = $1 AND user_id = $2', [id, userId]);
+      updated.icon_image_version = null;
+    }
+    return toSubscriptionDto(updated, ctx.today);
   });
 }
 

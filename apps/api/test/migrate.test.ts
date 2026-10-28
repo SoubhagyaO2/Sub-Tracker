@@ -25,7 +25,7 @@ describe('schema produced by the real migrations', () => {
   it('is idempotent: re-running applies nothing', async () => {
     expect(await migrate(pool)).toEqual([]);
     const { rows } = await pool.query('SELECT name FROM schema_migrations');
-    expect(rows).toEqual([{ name: '0001_init.sql' }, { name: '0002_reminder_skip_reasons.sql' }]);
+    expect(rows).toEqual([{ name: '0001_init.sql' }, { name: '0002_reminder_skip_reasons.sql' }, { name: '0003_subscription_icon_images.sql' }]);
   });
 
   it('0002 widens the reminder skip reasons without removing the old ones', async () => {

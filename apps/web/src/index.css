@@ -2,71 +2,43 @@
 
 /*
  * SubCycle design tokens (docs/DESIGN_SYSTEM.md). Every foreground/background pair used for text was
- * contrast-checked against WCAG AA in Stage 2. Dark is the designed-first theme; light mirrors the roles.
+ * contrast-checked against WCAG AA in Stage 2. The app is dark only.
  */
-:root,
-:root[data-theme='dark'] {
-  --canvas: #111310;
-  --surface: #20231d;
-  --raised: #292d25;
-  --line: #363b31;
-  --line-strong: #6b7566;
-  --fg: #f3f4ee;
-  --muted: #a3ab9c;
-  --subtle: #8a9384;
-  --accent: #c4e66a;
-  --accent-fg: #111310;
-  --accent-text: #c4e66a;
-  --accent-soft: rgb(196 230 106 / 0.14);
-  --danger: #f2877e;
-  --danger-soft: #2b1f1d;
-  --warn: #e9c46a;
+:root {
+  --canvas: #000000;
+  --surface: #1c1c1e;
+  --raised: #2c2c2e;
+  --line: #38383a;
+  --line-strong: #707080;
+  --fg: #f6f6f8;
+  --muted: #a1a1a8;
+  --subtle: #9090a0;
+  --accent: #ff6a5c;
+  --accent-grad: linear-gradient(135deg, #ff8a5c 0%, #ff4d7a 100%);
+  --accent-fg: #1a0b0d;
+  --accent-text: #ff9a8d;
+  --accent-soft: rgb(255 106 92 / 0.15);
+  --danger: #ff8fa0;
+  --danger-soft: #2d1a20;
+  --warn: #f0c566;
   --warn-soft: #2d2818;
-  --info: #7fb7e6;
-  --info-soft: #1c2630;
-  --focus: #c4e66a;
-  --scrim: rgb(0 0 0 / 0.62);
-  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.45);
-  --cat-1: #c4e66a;
+  --info: #86bdf0;
+  --info-soft: #1a2432;
+  --focus: #ff9a8d;
+  --scrim: rgb(0 0 0 / 0.65);
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.55);
+  --shadow-card: none;
+  --lime: #b6ff2b;
+  --shadow-glow: 0 10px 28px -6px rgb(255 85 100 / 0.55);
+  --shadow-nav: 0 18px 40px -8px rgb(0 0 0 / 0.75);
+  --cat-1: #ff6a5c;
   --cat-2: #7fb7e6;
-  --cat-3: #e9a46a;
+  --cat-3: #f0b35c;
   --cat-4: #b69cf0;
   --cat-5: #6fd3c0;
   --cat-6: #f28db2;
-  --cat-7: #8e9788;
+  --cat-7: #9090a0;
   color-scheme: dark;
-}
-
-:root[data-theme='light'] {
-  --canvas: #f6f7f2;
-  --surface: #ffffff;
-  --raised: #ffffff;
-  --line: #e1e4da;
-  --line-strong: #8a9384;
-  --fg: #161912;
-  --muted: #5b6455;
-  --subtle: #6b7566;
-  --accent: #c4e66a;
-  --accent-fg: #111310;
-  --accent-text: #3f5f0a;
-  --accent-soft: rgb(63 95 10 / 0.1);
-  --danger: #b3261e;
-  --danger-soft: #fbe9e7;
-  --warn: #8a5a00;
-  --warn-soft: #fbf1d8;
-  --info: #1d5a8f;
-  --info-soft: #e5f0fa;
-  --focus: #3f5f0a;
-  --scrim: rgb(22 25 18 / 0.45);
-  --shadow-pop: 0 8px 24px rgb(22 25 18 / 0.12);
-  --cat-1: #4e7a0b;
-  --cat-2: #1f6fb2;
-  --cat-3: #b25e12;
-  --cat-4: #6b4fc4;
-  --cat-5: #0f7f70;
-  --cat-6: #b8346b;
-  --cat-7: #5b6455;
-  color-scheme: light;
 }
 
 @theme inline {
@@ -83,16 +55,20 @@
   --color-accent-fg: var(--accent-fg);
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
+  --color-lime: var(--lime);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
-  --radius-control: 0.75rem;
-  --radius-card: 1.25rem;
-  --radius-dialog: 1.5rem;
+  --radius-control: 0.9rem;
+  --radius-card: 1.6rem;
+  --radius-dialog: 1.75rem;
   --shadow-pop: var(--shadow-pop);
+  --shadow-card: var(--shadow-card);
+  --shadow-glow: var(--shadow-glow);
+  --shadow-nav: var(--shadow-nav);
 }
 
 @layer base {
@@ -125,9 +101,21 @@
   select, input, textarea { color-scheme: inherit; }
 }
 
+/* The brand gradient (coral to pink) for primary actions, the add button and selected states. Text on it is always --accent-fg.
+   Declared with @utility so it also works with variants such as has-[:checked]:. */
+@utility bg-accent-grad {
+  background-image: var(--accent-grad);
+  background-color: var(--accent);
+}
+
 @layer utilities {
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+  .surface-glass {
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
   }
   .skeleton {
     @apply rounded-control bg-raised;

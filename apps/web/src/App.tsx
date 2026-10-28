@@ -13,7 +13,7 @@ import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { EditSubscriptionPage, NewSubscriptionPage } from './pages/SubscriptionFormPages';
 import { SubscriptionDetailPage } from './pages/SubscriptionDetail';
 import { SubscriptionListPage } from './pages/SubscriptionList';
-import { AuthProvider, ThemeSync, useAuth } from './state/auth';
+import { AuthProvider, useAuth } from './state/auth';
 import { DataProvider } from './state/data';
 import { ToastProvider, usePageTitle } from './state/ui';
 
@@ -142,7 +142,6 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ThemeSync />
         <ToastProvider>{children}</ToastProvider>
       </AuthProvider>
     </ErrorBoundary>

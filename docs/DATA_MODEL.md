@@ -51,7 +51,7 @@ CREATE UNIQUE INDEX users_email_lower_uq ON users (lower(email));
 CREATE TABLE user_preferences (
   user_id                 uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   currency                char(3)  NOT NULL DEFAULT 'INR' CHECK (currency ~ '^[A-Z]{3}$'),
-  theme                   text     NOT NULL DEFAULT 'dark' CHECK (theme IN ('dark','light','system')),
+  theme                   text     NOT NULL DEFAULT 'dark' CHECK (theme IN ('dark','light','system')), -- legacy: stored but ignored by the web app (dark only)
   timezone                text     NOT NULL DEFAULT 'Asia/Kolkata',   -- IANA; validated in app against Intl
   reminder_lead_days      smallint NOT NULL DEFAULT 3 CHECK (reminder_lead_days BETWEEN 0 AND 60),
   reminder_hour           smallint NOT NULL DEFAULT 9 CHECK (reminder_hour BETWEEN 0 AND 23),
@@ -306,3 +306,12 @@ Stage 8 needed no schema change: `user_preferences` already holds `currency` (CH
 **Cascade map for `DELETE FROM users`** (all `ON DELETE CASCADE`, verified by a test that fills every table and counts rows afterwards): `user_preferences`, `sessions`, `email_verification_tokens`, `subscriptions` and, through them, `payments`, `subscription_price_history` and `reminders` (composite `(subscription_id, user_id)` foreign keys, so a child can never reference another user's subscription). A failure in any dependent delete aborts the whole statement: nothing is removed (tested with a trigger that makes the `payments` delete fail).
 
 Changing `currency` or `timezone` updates one `user_preferences` row and nothing else: no subscription, payment, price-history or reminder row is rewritten by the request itself. Reminders are re-planned by the existing reconcile (see §9).
+
+## 11. Subscription pictures (migration `0003_subscription_icon_images.sql`)
+
+| Object | Purpose |
+|---|---|
+| `subscription_icon_images` (`subscription_id` PK, `user_id`, `content_type`, `data bytea`, `version`, `created_at`) | the optional picture, at most one per subscription. CHECKs: type is `image/png`, `image/jpeg` or `image/webp`; `1 <= octet_length(data) <= 40960`; `version` is 16 hex characters. Composite FK `(subscription_id, user_id)` to `subscriptions` with `ON DELETE CASCADE`, so deleting a subscription or an account removes it (tested) and a picture can never point at another user's subscription. |
+| `subscriptions.icon_image_version` | short random token, non-NULL exactly while a picture exists; part of the picture's URL so a changed picture is a new URL. Set and cleared in the same transaction as the picture row. |
+
+Transactions: *upload* = lock the subscription row, upsert the picture, set the version. *Remove* = delete the picture, clear the version. *PATCH icon* (logo / emoji / none) also deletes the picture. Pictures are at most 40 KB each, so they add little to backups; they are personal data and are deleted with the account like everything else (backups excepted, see OPERATIONS.md).
