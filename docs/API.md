@@ -230,6 +230,13 @@ Body `{ password, confirmEmail }` (a DELETE with a JSON body). The password re-a
 ### Email verification
 `POST /api/account/email-verification` (session; `503` when no SMTP is configured, `429` inside the resend cooldown, `409` already verified) and `POST /api/account/email-verification/confirm` (`{ token }`, single use, no session needed).
 
+### Password reset (forgot password)
+`POST /api/auth/password-reset/request` `{ email }` (no session, CSRF header). **Without an email provider: `503 EMAIL_NOT_CONFIGURED`, the same for every address.** With one: **always `202 { data: { requested: true } }`**, whether or not the address has an account (nothing about accounts is revealed; the email is sent after the response so timing does not reveal it either). If an account exists it receives a link `<APP_URL>/reset-password#token=<token>` (the token is in the URL fragment, which browsers never send to a server). Newer requests invalidate older links. Limited per client (`authMax` per `authWindowMs`) and per submitted address (`resetPerEmailMax`, 5 per window, counted whether or not the account exists): `429 RATE_LIMITED`.
+
+`POST /api/auth/password-reset/confirm` `{ token, newPassword }` (no session, CSRF header; the token is the credential). `200 { data: { reset: true } }`: the password is changed, **every session of the user is deleted** (sign out everywhere), all the user's reset tokens are removed, nobody is signed in, and a "password changed" notice (no link) is emailed if a provider is configured. `400 INVALID_TOKEN` for an unknown, used or expired token (one hour; the same message for all three); `422 VALIDATION_ERROR` with field `newPassword` when the password breaks the registration policy (length, common-password list, contains the email), in which case **the token is not used up**. Limited per client.
+
+Operators without an email provider use the command line instead (see OPERATIONS.md): `npm run admin:reset-link -- person@example.com` prints a one-time link.
+
 ## Errors specific to these stages
 `422 VALIDATION_ERROR` (with `details[{path,message}]`) · `404 NOT_FOUND` · `409 INVALID_TRANSITION` · `409 CURRENCY_LOCKED` · `409 SUBSCRIPTION_LIMIT_REACHED` · `409 DUPLICATE_PAYMENT_PERIOD`.
 

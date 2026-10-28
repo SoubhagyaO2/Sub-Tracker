@@ -10,7 +10,7 @@ import { fieldErrorsFromIssues, mapApiError, type FieldErrors } from '../lib/for
 import { useAuth } from '../state/auth';
 import { usePageTitle } from '../state/ui';
 
-function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle: string; children: ReactNode; footer: ReactNode }) {
+export function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle: string; children: ReactNode; footer: ReactNode }) {
   return (
     <main id="main" className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-4 py-10">
       <div className="mb-8 flex items-center gap-3">
@@ -93,6 +93,7 @@ export function LoginPage() {
         <ErrorSummary errors={errors} formError={formError} />
         <TextField name="email" label="Email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} />
         <TextField name="password" label="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} error={errors.password} />
+        <p className="-mt-2 text-right text-sm"><Link to="/forgot-password">Forgot your password?</Link></p>
         <Button type="submit" variant="primary" className="w-full" loading={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
         </Button>

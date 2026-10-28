@@ -1,13 +1,15 @@
 import { Router } from 'express';
-import { isValidTimeZone, loginSchema, registerSchema } from '@subcycle/shared';
+import { isValidTimeZone, loginSchema, passwordResetConfirmSchema, passwordResetRequestSchema, registerSchema } from '@subcycle/shared';
 import { loadPreferences, toUserDto } from '../auth/dto.js';
 import { assertPasswordAcceptable, hashPassword, needsRehash, verifyAgainstDummy, verifyPassword } from '../auth/password.js';
+import { createResetToken, resetLink } from '../auth/passwordReset.js';
 import { createSession, deleteSessionById } from '../auth/sessions.js';
+import { hashToken } from '../auth/tokens.js';
 import { isUniqueViolation, withTransaction } from '../db/pool.js';
 import type { AppDeps } from '../deps.js';
 import { AppError, conflict, unauthorized } from '../errors.js';
 import { clearSessionCookie, setSessionCookie } from '../middleware/cookies.js';
-import { authIpLimiter, loginEmailLimiter } from '../middleware/rateLimit.js';
+import { authIpLimiter, loginEmailLimiter, resetEmailLimiter } from '../middleware/rateLimit.js';
 import { requireAuth } from '../middleware/session.js';
 
 interface LoginRow {
@@ -99,6 +101,81 @@ export function authRouter(deps: AppDeps): Router {
         features: { emailVerificationAvailable: mailer.configured },
       },
     });
+  });
+
+  /**
+   * Forgot password. Needs email, so without a provider it fails honestly with 503 (the same for every address: nothing about
+   * accounts is revealed, and nothing is claimed as sent). With a provider the answer is ALWAYS the same 202, whether or
+   * not the address has an account; the email is sent after the response, so timing does not reveal it either.
+   */
+  router.post('/password-reset/request', ipLimit, resetEmailLimiter(config.rateLimit.authWindowMs, config.rateLimit.resetPerEmailMax), async (req, res) => {
+    const { email } = passwordResetRequestSchema.parse(req.body ?? {});
+    if (!mailer.configured) {
+      throw new AppError(
+        503,
+        'EMAIL_NOT_CONFIGURED',
+        "Password reset by email isn't available on this server. Ask the person who runs SubCycle to reset your password.",
+      );
+    }
+    const { rows } = await pool.query<{ id: string; display_name: string }>('SELECT id, display_name FROM users WHERE lower(email) = $1', [email]);
+    const user = rows[0];
+    if (user) {
+      const token = await createResetToken(pool, config, clock, user.id);
+      const minutes = Math.round(config.passwordReset.tokenTtlMs / 60_000);
+      void mailer
+        .send({
+          to: email,
+          subject: 'Reset your SubCycle password',
+          text: `Hi ${user.display_name},\n\nSomeone asked to reset the password for your SubCycle account. To choose a new password, open this link:\n${resetLink(config, token)}\n\nThe link works once and expires in ${minutes} minutes. If you did not ask for this, ignore this message: your password has not changed.\n`,
+        })
+        .catch((err: unknown) => req.log?.warn({ err }, 'password reset email delivery failed'));
+    }
+    res.status(202).json({ data: { requested: true } });
+  });
+
+  /**
+   * Sets a new password with the token from the reset link (the token is the credential, so no session is needed).
+   * Single use, expires, same password policy as registration. EVERY session of the user is deleted ("sign out everywhere"),
+   * all of the user's other reset tokens are removed, and nobody is signed in: the owner signs in with the new password.
+   */
+  router.post('/password-reset/confirm', ipLimit, async (req, res) => {
+    const { token, newPassword } = passwordResetConfirmSchema.parse(req.body ?? {});
+    const now = clock.now();
+    const done = await withTransaction(pool, async (tx) => {
+      const { rows } = await tx.query<{ id: string; user_id: string; email: string; display_name: string }>(
+        `SELECT t.id, t.user_id, u.email, u.display_name
+           FROM password_reset_tokens t
+           JOIN users u ON u.id = t.user_id
+          WHERE t.token_hash = $1 AND t.used_at IS NULL AND t.expires_at > $2
+          FOR UPDATE OF t`,
+        [hashToken(token), now],
+      );
+      const row = rows[0];
+      if (!row) return null;
+      try {
+        assertPasswordAcceptable(newPassword, row.email); // refused BEFORE the token is consumed, so the user can try again
+      } catch (err) {
+        if (err instanceof AppError && err.details) throw new AppError(err.status, err.code, err.message, err.details.map((d) => ({ ...d, path: 'newPassword' })));
+        throw err;
+      }
+      const newHash = await hashPassword(newPassword);
+      await tx.query('UPDATE users SET password_hash = $2, updated_at = $3 WHERE id = $1', [row.user_id, newHash, now]);
+      await tx.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [row.user_id]);
+      const del = await tx.query('DELETE FROM sessions WHERE user_id = $1', [row.user_id]);
+      return { ...row, revoked: del.rowCount ?? 0 };
+    });
+    if (!done) throw new AppError(400, 'INVALID_TOKEN', 'This reset link is invalid or has expired. Links work once and last an hour.');
+    req.log?.info({ event: 'password_reset', userId: done.user_id, sessionsRevoked: done.revoked }, 'password reset');
+    if (mailer.configured) {
+      void mailer
+        .send({
+          to: done.email,
+          subject: 'Your SubCycle password was changed',
+          text: `Hi ${done.display_name},\n\nThe password for your SubCycle account was just changed using a reset link, and you were signed out everywhere. If this was you, no action is needed. If it was not, reset your password again and check who has access to your email.\n`,
+        })
+        .catch((err: unknown) => req.log?.warn({ err }, 'password changed notice delivery failed'));
+    }
+    res.json({ data: { reset: true } });
   });
 
   // Idempotent: always succeeds and clears the cookie, whether or not a valid session existed.

@@ -33,6 +33,19 @@ export const verifyEmailConfirmSchema = z.strictObject({
   token: z.string().min(20).max(200),
 });
 
+/** Forgot-password request. The answer never depends on whether the address has an account. */
+export const passwordResetRequestSchema = z.strictObject({
+  email: emailSchema,
+});
+export type PasswordResetRequestInput = z.infer<typeof passwordResetRequestSchema>;
+
+/** Sets a new password with the token from the reset link. The new password follows the same policy as registration. */
+export const passwordResetConfirmSchema = z.strictObject({
+  token: z.string().min(20).max(200),
+  newPassword: passwordSchema,
+});
+export type PasswordResetConfirmInput = z.infer<typeof passwordResetConfirmSchema>;
+
 // ───────────── response shapes (shared by the API and the web client) ─────────────
 
 export interface UserDto {

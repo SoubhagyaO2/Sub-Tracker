@@ -52,3 +52,18 @@ export const passwordConfirmLimiter = (windowMs: number, limit: number) =>
 /** Per signed-in user: each call may make the server fetch a web page, so it is limited well below the general API limit. */
 export const linkPreviewLimiter = (windowMs: number, limit: number) =>
   limiter({ windowMs, limit, key: (req) => 'user:' + (req.auth?.userId ?? ipKeyGenerator(req.ip ?? 'unknown')) });
+
+/**
+ * Per submitted email for password-reset requests: counts EVERY request (the account may not exist, and the answer is the
+ * same either way), so it cannot be used to flood one inbox. The email is only hashed for the key, never logged or stored.
+ */
+export const resetEmailLimiter = (windowMs: number, limit: number) =>
+  limiter({
+    windowMs,
+    limit,
+    key: (req) => {
+      const email = (req.body as { email?: unknown } | undefined)?.email;
+      const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      return 'reset:' + createHash('sha256').update(normalized).digest('hex');
+    },
+  });
