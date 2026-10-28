@@ -80,6 +80,12 @@ export const linkPreviewApi = {
   fetch: (url: string, signal?: AbortSignal) => request<LinkPreview>('POST', '/api/link-preview', { body: { url }, signal }).then((r) => r.data),
 };
 
+export const iconImageApi = {
+  /** The picture is already shrunk and re-encoded by prepareIconImage; the server checks it again. */
+  upload: (id: string, image: Blob) => request<SubscriptionDto>('PUT', `/api/subscriptions/${id}/icon-image`, { rawBody: image }).then((r) => r.data),
+  remove: (id: string) => request<SubscriptionDto>('DELETE', `/api/subscriptions/${id}/icon-image`).then((r) => r.data),
+};
+
 export const subscriptionsApi = {
   list: (params: SubscriptionListParams, signal?: AbortSignal) =>
     request<SubscriptionDto[]>('GET', '/api/subscriptions', { query: { ...params }, signal }).then(toPaged),

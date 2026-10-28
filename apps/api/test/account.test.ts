@@ -378,9 +378,9 @@ describe('password confirmation attempts are rate limited per user (failures onl
 
 // ───────────────────────────── account deletion ─────────────────────────────
 
-const TABLES = ['user_preferences', 'sessions', 'subscriptions', 'payments', 'subscription_price_history', 'reminders', 'email_verification_tokens'] as const;
+const TABLES = ['user_preferences', 'sessions', 'subscriptions', 'payments', 'subscription_price_history', 'reminders', 'email_verification_tokens', 'subscription_icon_images'] as const;
 const FK_USER: Record<string, string> = {
-  user_preferences: 'user_id', sessions: 'user_id', subscriptions: 'user_id', payments: 'user_id', subscription_price_history: 'user_id', reminders: 'user_id', email_verification_tokens: 'user_id',
+  user_preferences: 'user_id', sessions: 'user_id', subscriptions: 'user_id', payments: 'user_id', subscription_price_history: 'user_id', reminders: 'user_id', email_verification_tokens: 'user_id', subscription_icon_images: 'user_id',
 };
 
 /** Gives a user one of everything that can hang off an account. */
@@ -389,6 +389,9 @@ async function fill(ck: string, id: string) {
   const sub = await createSub(app, ck, { name: 'Netflix', nextBillingDate: '2030-02-01' });
   await c.post(`/api/subscriptions/${sub.id}/payments`, { amountMinor: 64900, paidOn: '2030-01-10', forBillingDate: '2030-02-01' });
   await c.patch(`/api/subscriptions/${sub.id}`, { amountMinor: 79900 }); // price history row
+  const tinyPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  const upload = await request(app).put(`/api/subscriptions/${sub.id}/icon-image`).set(CSRF).set('Cookie', ck).set('Content-Type', 'image/png').send(tinyPng);
+  if (upload.status !== 200) throw new Error(`picture upload failed: ${upload.status}`);
   await pool.query(
     "INSERT INTO email_verification_tokens (user_id, email, token_hash, expires_at, created_at) VALUES ($1, 'x@example.com', decode(md5(random()::text) || md5(random()::text), 'hex'), now() + interval '1 day', now())",
     [id],

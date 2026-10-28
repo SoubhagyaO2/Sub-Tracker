@@ -146,6 +146,13 @@ Billing dates are computed from the **anchor** (`addMonths(anchor, n)` etc.), ne
 ### `GET /api/subscriptions/:id/upcoming?count=6` → `200 { data: [{ date, amountMinor, currency }], meta: { kind: "projection", note } }`
 `count` 1–24 (default 6). A **projection** at the current price, not a record of charges. Active: from the upcoming date; trial: only while its end date hasn't passed; paused/cancelled/archived: `[]`. Read-only.
 
+## Subscription pictures (optional)
+A user may attach their own small picture to a subscription instead of a built-in logo or emoji. The ordinary `icon` field still accepts only `glyph` (a bundled logo key) and `emoji`; a picture is managed by its own routes. All need a session and the CSRF header and are scoped to the owner (anything else is the same `404` as a missing subscription).
+- `PUT /api/subscriptions/:id/icon-image` → `200 { data: Subscription }`. The body is the raw image, `Content-Type: image/png | image/jpeg | image/webp`. At most **40 KB** and **1024 x 1024 pixels**; the type is checked against the file's own header (a label that lies, SVG, GIF, truncated or oversized files → `422`, field `image`; over the transport limit → `413`). Replaces any earlier picture.
+- `DELETE /api/subscriptions/:id/icon-image` → `200 { data: Subscription }` (idempotent); the subscription goes back to its logo / emoji / no icon.
+- `GET /api/subscriptions/:id/icon-image` → the bytes, `Cache-Control: private, max-age=31536000, immutable`, `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`.
+While a picture exists the subscription's `icon` is `{ kind: "image", value: "/api/subscriptions/<id>/icon-image?v=<token>" }` (a same-origin URL; the token changes whenever the picture changes). Choosing a logo, an emoji or "no icon" with `PATCH` deletes the picture. Lists never contain image bytes. The web app crops pictures to a square and shrinks them to 128 x 128 in the browser first (this also strips metadata); the server does not rely on that.
+
 ## Link preview (quick start)
 ### `POST /api/link-preview` → `200 { data: LinkPreview }` · `422` · `429`
 Body `{ url }` (1-2048 characters, strict). Needs a session and the CSRF header; limited to **20 per user per minute** (`rateLimit.linkPreviewMax`).

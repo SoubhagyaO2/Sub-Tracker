@@ -281,7 +281,7 @@ export interface SubscriptionDto {
   usageLevel: UsageLevel | null;
   reminderLeadDays: number | null;
   remindersEnabled: boolean;
-  icon: { kind: 'glyph' | 'emoji'; value: string } | null;
+  icon: { kind: 'glyph' | 'emoji' | 'image'; value: string } | null;
   /**
    * The upcoming billing date as of today, COMPUTED ON READ (nothing is written): active subscriptions roll the
    * stored date forward along the anchor's schedule; trials keep their stored date; others are null.

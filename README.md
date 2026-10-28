@@ -42,7 +42,7 @@ See [docs/TESTING.md](docs/TESTING.md) for environment variables, safety rules a
 
 ## Third-party artwork
 
-Brand logos shown for well-known services come from [Simple Icons](https://simpleicons.org) (CC0-1.0, dev dependency, bundled at build time; nothing is loaded from the network). They are trademarks of their respective owners and appear only to identify the service a user tracks; SubCycle is not affiliated with or endorsed by any of them. See [docs/FRONTEND.md](docs/FRONTEND.md#brand-logos).
+Brand logos shown for well-known services come from [Simple Icons](https://simpleicons.org) and [SVG Logos](https://github.com/gilbarbara/logos) (both CC0-1.0, dev dependencies, bundled at build time; nothing is loaded from the network). They are trademarks of their respective owners and appear only to identify the service a user tracks; SubCycle is not affiliated with or endorsed by any of them. See [docs/FRONTEND.md](docs/FRONTEND.md#brand-logos).
 
 ## Documentation
 

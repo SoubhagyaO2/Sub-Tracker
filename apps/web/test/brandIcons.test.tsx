@@ -15,15 +15,24 @@ describe('brand logos bundled with the app', () => {
     expect(Object.keys(BRAND_ICONS).filter((k) => !used.has(k))).toEqual([]);
   });
 
-  it('each logo is well-formed: a title, a 6-digit colour and path data only (nothing executable)', () => {
+  it('each logo is well-formed: path logos are path data only, image logos are inert SVG data URIs', () => {
     for (const [key, icon] of Object.entries(BRAND_ICONS)) {
       expect(key).toMatch(/^[a-z0-9-]{1,32}$/);
       expect(icon.title.length, key).toBeGreaterThan(0);
-      expect(icon.hex, key).toMatch(/^[0-9A-Fa-f]{6}$/);
-      expect(icon.path, key).toMatch(/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s-]+$/); // SVG path commands and numbers: no markup, no scripts
-      expect(icon.path.length, key).toBeLessThan(6000);
+      if (icon.path !== undefined) {
+        expect(icon.hex, key).toMatch(/^[0-9A-Fa-f]{6}$/);
+        expect(icon.path, key).toMatch(/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,\s-]+$/); // SVG path commands and numbers: no markup, no scripts
+        expect(icon.path.length, key).toBeLessThan(6000);
+      } else {
+        expect(icon.image, key).toMatch(/^data:image\/svg\+xml;charset=utf-8,/);
+        const svg = decodeURIComponent(icon.image!.split(',').slice(1).join(','));
+        expect(svg, key).toMatch(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 [\d.]+ [\d.]+">/);
+        expect(svg, key).not.toMatch(/<\s*(script|foreignObject|iframe|image|use)\b|\son[a-z]+\s*=|href\s*=|javascript:|@import|url\(\s*['"]?https?:/i); // nothing active, nothing external
+        expect(svg.length, key).toBeLessThan(8000);
+      }
     }
-    expect(Object.keys(BRAND_ICONS).length).toBeGreaterThanOrEqual(50);
+    expect(Object.keys(BRAND_ICONS).length).toBeGreaterThanOrEqual(60);
+    expect(Object.values(BRAND_ICONS).some((i) => i.image)).toBe(true);
   });
 
   it('the generated file carries its generator, licence and trademark notice', () => {
@@ -44,6 +53,16 @@ describe('ServiceIcon', () => {
     expect(tile.querySelector('svg path')?.getAttribute('d')).toBe(BRAND_ICONS.netflix!.path);
     expect(tile.querySelector('img')).toBeNull(); // nothing is loaded from anywhere
     expect(tile.querySelector('svg')?.getAttribute('fill')).toBe(`#${BRAND_ICONS.netflix!.hex}`);
+  });
+
+  it('draws a full-colour logo as an inline image (never as markup), with no alt text because the name is next to it', () => {
+    const { container } = render(<ServiceIcon subscription={sub({ kind: 'glyph', value: 'slack-icon' })} />);
+    const tile = container.querySelector('[data-logo="slack-icon"]')!;
+    const img = tile.querySelector('img')!;
+    expect(img.getAttribute('src')).toBe(BRAND_ICONS['slack-icon']!.image);
+    expect(img.getAttribute('src')).toMatch(/^data:image\/svg\+xml/); // same-origin policy: nothing remote
+    expect(img).toHaveAttribute('alt', '');
+    expect(tile.querySelector('svg')).toBeNull();
   });
 
   it('falls back to a letter tile for an unknown key, and keeps emoji working', () => {

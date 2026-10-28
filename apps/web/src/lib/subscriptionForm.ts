@@ -55,7 +55,8 @@ export const iconFromText = (t: string): { kind: 'emoji' | 'glyph'; value: strin
   if (!value) return null;
   return /^[a-z0-9-]{1,32}$/.test(value) ? { kind: 'glyph', value } : { kind: 'emoji', value };
 };
-export const textFromIcon = (icon: { kind: string; value: string } | null | undefined): string => icon?.value ?? '';
+/** A picture the user attached is managed by its own control, not by this text field. */
+export const textFromIcon = (icon: { kind: string; value: string } | null | undefined): string => (icon && icon.kind !== 'image' ? icon.value : '');
 /** A logo key must be one of the logos that ship with the app, otherwise nothing could be shown for it. */
 const iconProblem = (t: string): string | null => {
   const icon = iconFromText(t);

@@ -25,6 +25,8 @@ type QueryValue = string | number | boolean | readonly string[] | undefined | nu
 export interface RequestOptions {
   query?: Record<string, QueryValue>;
   body?: unknown;
+  /** Send these exact bytes (e.g. a picture) with their own content type instead of JSON. */
+  rawBody?: Blob;
   signal?: AbortSignal;
   /** Auth endpoints handle their own 401s; everything else treats a 401 as "session ended". */
   skipAuthRedirect?: boolean;
@@ -65,7 +67,7 @@ const FALLBACK_MESSAGE: Record<number, string> = {
  * The single place HTTP happens. Authentication is the httpOnly session cookie (never readable by this
  * code and never stored by it); state-changing requests carry the CSRF header the server requires.
  */
-export async function request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, opts: RequestOptions = {}): Promise<ApiResponse<T>> {
+export async function request<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, opts: RequestOptions = {}): Promise<ApiResponse<T>> {
   let res: Response;
   try {
     res = await fetch(buildUrl(path, opts.query), {
@@ -75,9 +77,9 @@ export async function request<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', pa
       headers: {
         Accept: 'application/json',
         'X-SubCycle-Client': 'web',
-        ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(opts.rawBody ? { 'Content-Type': opts.rawBody.type } : opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       },
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      body: opts.rawBody ?? (opts.body !== undefined ? JSON.stringify(opts.body) : undefined),
     });
   } catch (err) {
     if ((err as { name?: string }).name === 'AbortError') throw err;

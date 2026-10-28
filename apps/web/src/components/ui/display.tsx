@@ -1,5 +1,5 @@
 import { BRAND_ICONS } from '../../lib/brandIcons.generated';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Category, DateOnly, SubscriptionDto, SubscriptionStatus } from '@subcycle/shared';
 import { ApiError } from '../../api/client';
 import { formatDate, relativeDay } from '../../lib/dates';
@@ -107,10 +107,28 @@ const readableFill = (hex: string): string => {
  * Service icon: a built-in brand logo (icon kind "glyph", bundled with the app: nothing is fetched from anywhere), an emoji,
  * or a letter tile. Always decorative: the service name is shown next to it.
  */
+/** A picture the user attached: same-origin, small, cropped to the tile; falls back to the letter tile if it cannot load. */
+function PictureIcon({ src, box, fallback }: { src: string; box: string; fallback: ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <>{fallback}</>;
+  return (
+    <span aria-hidden="true" data-picture className={`flex ${box} shrink-0 items-center justify-center overflow-hidden rounded-control bg-raised`}>
+      <img src={src} alt="" loading="lazy" draggable={false} onError={() => setFailed(true)} className="h-full w-full object-cover" />
+    </span>
+  );
+}
+
 export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<SubscriptionDto, 'name' | 'icon' | 'category'>; size?: 'md' | 'lg' }) {
   const box = size === 'lg' ? 'h-14 w-14 text-2xl' : 'h-10 w-10 text-lg';
   const brand = subscription.icon?.kind === 'glyph' ? BRAND_ICONS[subscription.icon.value] : undefined;
-  if (brand) {
+  if (brand?.image) {
+    return (
+      <span aria-hidden="true" data-logo={subscription.icon!.value} className={`flex ${box} shrink-0 items-center justify-center rounded-control bg-[#F3F4EE] ring-1 ring-black/10`}>
+        <img src={brand.image} alt="" className="h-[62%] w-[62%] object-contain" draggable={false} />
+      </span>
+    );
+  }
+  if (brand?.path) {
     return (
       <span aria-hidden="true" data-logo={subscription.icon!.value} className={`flex ${box} shrink-0 items-center justify-center rounded-control bg-[#F3F4EE] ring-1 ring-black/10`}>
         <svg viewBox="0 0 24 24" className="h-[58%] w-[58%]" fill={readableFill(brand.hex)} focusable="false">
@@ -127,7 +145,7 @@ export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<
     );
   }
   const slot = CATEGORY_SLOT[subscription.category as Category] ?? 7;
-  return (
+  const letter = (
     <span
       aria-hidden="true"
       className={`flex ${box} shrink-0 items-center justify-center rounded-control font-semibold`}
@@ -136,6 +154,8 @@ export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<
       {subscription.name.trim().charAt(0).toUpperCase() || '?'}
     </span>
   );
+  if (subscription.icon?.kind === 'image' && subscription.icon.value.startsWith('/api/')) return <PictureIcon src={subscription.icon.value} box={box} fallback={letter} />;
+  return letter;
 }
 
 // ───────────── states ─────────────
