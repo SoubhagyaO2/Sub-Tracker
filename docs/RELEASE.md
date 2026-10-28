@@ -40,11 +40,11 @@ Read only in `apps/api/src/config.ts`; invalid or unsafe values stop the process
 
 - PostgreSQL 16 was used for all testing. Use a dedicated database and role. The role needs `CONNECT`, and the ability to create tables and triggers *for the migration step*; a stricter setup runs migrations as one role and the app as another with DML-only rights (not tested here).
 - Pool: up to 10 connections per API process; 10 s connection timeout, 30 s `statement_timeout`; idle connection errors are logged, not fatal. The scheduler's advisory lock needs a **session-level** connection: do **not** put PgBouncer in *transaction* pooling mode in front of the API (session pooling or direct connections are fine).
-- TLS: set `sslmode` in `DATABASE_URL`. node-postgres treats `require` like `verify-full` today (this changes in a future major version): prefer `verify-full` with a CA file via the standard `PGSSLROOTCERT`-style options. **Not verified** against a real TLS-enforcing server.
+- TLS: set `sslmode` in `DATABASE_URL`. node-postgres treats `require` like `verify-full` today (this changes in a future major version): prefer `sslmode=verify-full` and, if the provider gives you a CA certificate, `sslrootcert=/path/ca.pem` in the URL (a parameter node-postgres' connection-string parser understands). **Not verified** against a real TLS-enforcing server.
 
 ## Migrations
 
-`npm run migrate` (from a checkout, or `node apps/api/dist/db/migrate-cli.js` from a build): applies `apps/api/migrations/*.sql` in order, one transaction per file, records name + checksum in `schema_migrations`, refuses to continue if an applied file was edited. Running it twice is a no-op (**verified**, also in CI).
+From a full checkout `npm run migrate` works (it uses `tsx` and loads an optional `.env`). In a production tree (after `npm prune --omit=dev`, where `tsx` is absent) run the compiled command `node apps/api/dist/db/migrate-cli.js`, which does **not** read a `.env` file, so the variables must already be in the environment. Either way it applies `apps/api/migrations/*.sql` in order, one transaction per file, records name + checksum in `schema_migrations`, refuses to continue if an applied file was edited. Running it twice is a no-op (**verified**, also in CI).
 
 Procedure: take a backup → deploy the new build → run migrations → start/restart the API. Both migrations so far are additive.
 **Rollback limits:** there are no down-migrations. Rolling back means restoring the pre-migration backup (losing data written since) or shipping a new forward migration. Because migrations are applied before the new code serves traffic, keep each migration backward-compatible with the previous release (expand → backfill → contract) so a code rollback is possible without a restore.
@@ -52,7 +52,7 @@ Procedure: take a backup → deploy the new build → run migrations → start/r
 ## Health, shutdown, restarts
 
 - `GET /api/health`: liveness (no database access). `GET /api/health/ready`: runs `SELECT 1`; `503` with a fixed body when the database is unreachable. **Verified.**
-- `SIGTERM`/`SIGINT`: stop accepting connections, close idle ones, let in-flight requests and a running scheduler cycle finish, close the pool, exit 0; a 15 s watchdog forces exit. `uncaughtException`/`unhandledRejection` log the error *class* only and exit 1 so a supervisor restarts the process. Run it under something that restarts it (systemd, Docker restart policy, a platform supervisor).
+- `SIGTERM`/`SIGINT`: stop accepting connections, close idle ones, let in-flight requests and a running scheduler cycle finish, close the pool, exit 0; a 15 s watchdog forces exit. (The code path exists; **no test sends a real signal**, and Windows cannot deliver `SIGTERM` gracefully, so it is unexercised.) `uncaughtException`/`unhandledRejection` log the error *class* only and exit 1 so a supervisor restarts the process. Run it under something that restarts it (systemd, Docker restart policy, a platform supervisor).
 
 ## Scheduler and instances
 
@@ -129,6 +129,8 @@ Fixed in Stage 9:
 Fixed in Stage 10: raw error text (database messages that quote row values, SMTP replies that quote recipients) reached the logs; 5xx responses now carry a request id and logs a sanitised diagnosis only; SMTP STARTTLS was opportunistic and is now required; the readiness route could be used to exhaust the connection pool and is rate limited; shutdown waited for HTTP to drain before stopping the scheduler (now in parallel); the 30 s statement timeout would have applied to migrations (now exempt); concurrent browser-test runs deleted each other's users and artifacts (now namespaced).
 
 Left as-is and documented: per-process rate limits; no password reset; no email change; no automated multi-process test; no Firefox/WebKit tests; no manual screen-reader pass.
+
+The step-by-step provisioning, validation and backup specification for a private deployment is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Pre-release checklist
 
