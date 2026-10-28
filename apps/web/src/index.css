@@ -6,13 +6,13 @@
  */
 :root,
 :root[data-theme='dark'] {
-  --canvas: #0c0c0f;
-  --surface: #16161b;
-  --raised: #1e1e25;
-  --line: #2a2a33;
+  --canvas: #000000;
+  --surface: #1c1c1e;
+  --raised: #2c2c2e;
+  --line: #38383a;
   --line-strong: #707080;
   --fg: #f6f6f8;
-  --muted: #a9a9b6;
+  --muted: #a1a1a8;
   --subtle: #9090a0;
   --accent: #ff6a5c;
   --accent-grad: linear-gradient(135deg, #ff8a5c 0%, #ff4d7a 100%);
@@ -28,7 +28,8 @@
   --focus: #ff9a8d;
   --scrim: rgb(0 0 0 / 0.65);
   --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.55);
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 14px 34px -14px rgb(0 0 0 / 0.7);
+  --shadow-card: none;
+  --lime: #b6ff2b;
   --shadow-glow: 0 10px 28px -6px rgb(255 85 100 / 0.55);
   --shadow-nav: 0 18px 40px -8px rgb(0 0 0 / 0.75);
   --cat-1: #ff6a5c;
@@ -65,6 +66,7 @@
   --scrim: rgb(23 21 26 / 0.45);
   --shadow-pop: 0 12px 32px rgb(23 21 26 / 0.16);
   --shadow-card: 0 1px 2px rgb(23 21 26 / 0.04), 0 12px 30px -14px rgb(23 21 26 / 0.18);
+  --lime: #3d7a00;
   --shadow-glow: 0 10px 24px -8px rgb(192 31 79 / 0.45);
   --shadow-nav: 0 16px 36px -8px rgb(23 21 26 / 0.28);
   --cat-1: #d4402c;
@@ -91,6 +93,7 @@
   --color-accent-fg: var(--accent-fg);
   --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
+  --color-lime: var(--lime);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-warn: var(--warn);
@@ -98,7 +101,7 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --radius-control: 0.9rem;
-  --radius-card: 1.5rem;
+  --radius-card: 1.6rem;
   --radius-dialog: 1.75rem;
   --shadow-pop: var(--shadow-pop);
   --shadow-card: var(--shadow-card);
@@ -112,8 +115,6 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
-    background-image: radial-gradient(60rem 28rem at 85% -8rem, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
-    background-attachment: fixed;
     @apply bg-canvas font-sans text-[0.9375rem] leading-normal text-fg antialiased;
     margin: 0;
     min-width: 320px;
