@@ -32,25 +32,23 @@ export function CardHeader({ id, title, tag, action }: { id: string; title: stri
 
 // ───────────── truth labels ─────────────
 
-const KIND_STYLE = {
-  recorded: 'border-accent-text/50 bg-accent-soft text-accent-text',
-  estimate: 'border-info/50 bg-info-soft text-info',
-  projection: 'border-info/50 bg-info-soft text-info',
-} as const;
 const KIND_HELP = {
   recorded: 'Based on payments you recorded. SubCycle does not verify them with your bank or the provider.',
   estimate: 'Calculated from current prices; may differ from what you were actually charged.',
   projection: 'Looking forward from today, assuming nothing changes.',
 } as const;
-export type Kind = keyof typeof KIND_STYLE;
+export type Kind = keyof typeof KIND_HELP;
 
-/** Marks every figure as Recorded, Estimate or Projection so the three are never confused. */
+/**
+ * Says whether a figure is Recorded, an Estimate or a Projection. It is not shown on screen (by design), but stays in the page for
+ * screen-reader users so the three are still never confused.
+ */
 export function KindTag({ kind }: { kind: Kind }) {
   return (
-    <span title={KIND_HELP[kind]} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${KIND_STYLE[kind]}`}>
-      {kind === 'recorded' ? 'Recorded' : kind === 'estimate' ? 'Estimate' : 'Projection'}
+    <>
+      <span className="sr-only">{kind === 'recorded' ? 'Recorded' : kind === 'estimate' ? 'Estimate' : 'Projection'}</span>
       <span className="sr-only">. {KIND_HELP[kind]}</span>
-    </span>
+    </>
   );
 }
 
