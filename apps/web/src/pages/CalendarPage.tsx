@@ -128,7 +128,7 @@ export function CalendarPage() {
         </div>
         <div role="group" aria-label="Calendar view" className="flex gap-1 rounded-control border border-strong bg-canvas p-1">
           {views.map((v) => (
-            <button key={v.label} type="button" aria-pressed={view === v.value} onClick={() => setView(v.value)} className={`min-h-9 rounded-[0.55rem] px-3 text-sm font-semibold ${view === v.value ? 'bg-accent text-accent-fg' : 'text-muted hover:text-fg'}`}>
+            <button key={v.label} type="button" aria-pressed={view === v.value} onClick={() => setView(v.value)} className={`min-h-9 rounded-[0.55rem] px-3 text-sm font-semibold ${view === v.value ? 'bg-accent-grad text-accent-fg' : 'text-muted hover:text-fg'}`}>
               {v.label}
             </button>
           ))}
@@ -192,7 +192,7 @@ export function CalendarPage() {
                                 aria-label={label}
                                 aria-current={d === today ? 'date' : undefined}
                                 onClick={() => setSelected(d)}
-                                className={`flex h-12 w-full flex-col items-center justify-center rounded-control text-sm tnum sm:h-14 ${isSelected ? 'bg-accent text-accent-fg' : past ? 'text-subtle hover:bg-raised' : 'text-fg hover:bg-raised'} ${d === today && !isSelected ? 'ring-1 ring-accent-text' : ''}`}
+                                className={`flex h-12 w-full flex-col items-center justify-center rounded-control text-sm tnum sm:h-14 ${isSelected ? 'bg-accent-grad text-accent-fg' : past ? 'text-subtle hover:bg-raised' : 'text-fg hover:bg-raised'} ${d === today && !isSelected ? 'ring-1 ring-accent-text' : ''}`}
                               >
                                 <span>{Number(d.slice(8))}</span>
                                 {items.length > 0 ? (

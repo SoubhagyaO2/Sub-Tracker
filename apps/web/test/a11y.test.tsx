@@ -247,8 +247,8 @@ describe('page structure and keyboard navigation', () => {
     const css = readFileSync('src/index.css', 'utf8'); // vitest runs with apps/web as the working directory
     expect(css).toMatch(/prefers-reduced-motion: reduce/);
     expect(css).toMatch(/:focus-visible\s*\{[^}]*outline: 2px solid var\(--focus\)/);
-    // the exact palette from the approved visual direction
-    for (const hex of ['#111310', '#20231d', '#c4e66a', '#f3f4ee']) expect(css.toLowerCase()).toContain(hex);
+    // the exact palette from the approved visual direction (neutral dark with a coral accent)
+    for (const hex of ['#0c0c0f', '#16161b', '#ff6a5c', '#f6f6f8', '#d4402c']) expect(css.toLowerCase()).toContain(hex);
   });
 });
 

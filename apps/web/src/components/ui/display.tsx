@@ -10,7 +10,7 @@ import { Icon, type IconName } from './Icon';
 
 export function Card({ children, className = '', as: Tag = 'section', ...rest }: { children: ReactNode; className?: string; as?: 'section' | 'div' | 'li'; 'aria-labelledby'?: string }) {
   return (
-    <Tag className={`min-w-0 rounded-card border border-line bg-surface p-4 sm:p-6 ${className}`} {...rest}>
+    <Tag className={`min-w-0 rounded-card border border-line bg-surface p-4 shadow-card sm:p-6 ${className}`} {...rest}>
       {children}
     </Tag>
   );

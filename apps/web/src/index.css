@@ -6,66 +6,74 @@
  */
 :root,
 :root[data-theme='dark'] {
-  --canvas: #111310;
-  --surface: #20231d;
-  --raised: #292d25;
-  --line: #363b31;
-  --line-strong: #6b7566;
-  --fg: #f3f4ee;
-  --muted: #a3ab9c;
-  --subtle: #8a9384;
-  --accent: #c4e66a;
-  --accent-fg: #111310;
-  --accent-text: #c4e66a;
-  --accent-soft: rgb(196 230 106 / 0.14);
-  --danger: #f2877e;
-  --danger-soft: #2b1f1d;
-  --warn: #e9c46a;
+  --canvas: #0c0c0f;
+  --surface: #16161b;
+  --raised: #1e1e25;
+  --line: #2a2a33;
+  --line-strong: #707080;
+  --fg: #f6f6f8;
+  --muted: #a9a9b6;
+  --subtle: #9090a0;
+  --accent: #ff6a5c;
+  --accent-grad: linear-gradient(135deg, #ff8a5c 0%, #ff4d7a 100%);
+  --accent-fg: #1a0b0d;
+  --accent-text: #ff9a8d;
+  --accent-soft: rgb(255 106 92 / 0.15);
+  --danger: #ff8fa0;
+  --danger-soft: #2d1a20;
+  --warn: #f0c566;
   --warn-soft: #2d2818;
-  --info: #7fb7e6;
-  --info-soft: #1c2630;
-  --focus: #c4e66a;
-  --scrim: rgb(0 0 0 / 0.62);
-  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.45);
-  --cat-1: #c4e66a;
+  --info: #86bdf0;
+  --info-soft: #1a2432;
+  --focus: #ff9a8d;
+  --scrim: rgb(0 0 0 / 0.65);
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.55);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 14px 34px -14px rgb(0 0 0 / 0.7);
+  --shadow-glow: 0 10px 28px -6px rgb(255 85 100 / 0.55);
+  --shadow-nav: 0 18px 40px -8px rgb(0 0 0 / 0.75);
+  --cat-1: #ff6a5c;
   --cat-2: #7fb7e6;
-  --cat-3: #e9a46a;
+  --cat-3: #f0b35c;
   --cat-4: #b69cf0;
   --cat-5: #6fd3c0;
   --cat-6: #f28db2;
-  --cat-7: #8e9788;
+  --cat-7: #9090a0;
   color-scheme: dark;
 }
 
 :root[data-theme='light'] {
-  --canvas: #f6f7f2;
+  --canvas: #f5f4f7;
   --surface: #ffffff;
   --raised: #ffffff;
-  --line: #e1e4da;
-  --line-strong: #8a9384;
-  --fg: #161912;
-  --muted: #5b6455;
-  --subtle: #6b7566;
-  --accent: #c4e66a;
-  --accent-fg: #111310;
-  --accent-text: #3f5f0a;
-  --accent-soft: rgb(63 95 10 / 0.1);
+  --line: #e7e5ec;
+  --line-strong: #8a8794;
+  --fg: #17151a;
+  --muted: #5c5966;
+  --subtle: #6c6975;
+  --accent: #d4402c;
+  --accent-grad: linear-gradient(135deg, #d4402c 0%, #c01f4f 100%);
+  --accent-fg: #ffffff;
+  --accent-text: #b61f3f;
+  --accent-soft: rgb(192 31 79 / 0.08);
   --danger: #b3261e;
   --danger-soft: #fbe9e7;
   --warn: #8a5a00;
   --warn-soft: #fbf1d8;
   --info: #1d5a8f;
   --info-soft: #e5f0fa;
-  --focus: #3f5f0a;
-  --scrim: rgb(22 25 18 / 0.45);
-  --shadow-pop: 0 8px 24px rgb(22 25 18 / 0.12);
-  --cat-1: #4e7a0b;
+  --focus: #b61f3f;
+  --scrim: rgb(23 21 26 / 0.45);
+  --shadow-pop: 0 12px 32px rgb(23 21 26 / 0.16);
+  --shadow-card: 0 1px 2px rgb(23 21 26 / 0.04), 0 12px 30px -14px rgb(23 21 26 / 0.18);
+  --shadow-glow: 0 10px 24px -8px rgb(192 31 79 / 0.45);
+  --shadow-nav: 0 16px 36px -8px rgb(23 21 26 / 0.28);
+  --cat-1: #d4402c;
   --cat-2: #1f6fb2;
-  --cat-3: #b25e12;
+  --cat-3: #a85a10;
   --cat-4: #6b4fc4;
   --cat-5: #0f7f70;
   --cat-6: #b8346b;
-  --cat-7: #5b6455;
+  --cat-7: #5c5966;
   color-scheme: light;
 }
 
@@ -89,10 +97,13 @@
   --color-warn-soft: var(--warn-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
-  --radius-control: 0.75rem;
-  --radius-card: 1.25rem;
-  --radius-dialog: 1.5rem;
+  --radius-control: 0.9rem;
+  --radius-card: 1.5rem;
+  --radius-dialog: 1.75rem;
   --shadow-pop: var(--shadow-pop);
+  --shadow-card: var(--shadow-card);
+  --shadow-glow: var(--shadow-glow);
+  --shadow-nav: var(--shadow-nav);
 }
 
 @layer base {
@@ -101,6 +112,8 @@
     -webkit-text-size-adjust: 100%;
   }
   body {
+    background-image: radial-gradient(60rem 28rem at 85% -8rem, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+    background-attachment: fixed;
     @apply bg-canvas font-sans text-[0.9375rem] leading-normal text-fg antialiased;
     margin: 0;
     min-width: 320px;
@@ -125,9 +138,21 @@
   select, input, textarea { color-scheme: inherit; }
 }
 
+/* The brand gradient (coral to pink) for primary actions, the add button and selected states. Text on it is always --accent-fg.
+   Declared with @utility so it also works with variants such as has-[:checked]:. */
+@utility bg-accent-grad {
+  background-image: var(--accent-grad);
+  background-color: var(--accent);
+}
+
 @layer utilities {
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+  .surface-glass {
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
   }
   .skeleton {
     @apply rounded-control bg-raised;
