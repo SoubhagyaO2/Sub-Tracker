@@ -1,27 +1,42 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import type { Category } from '@subcycle/shared';
 import { analyticsApi, fetchAllSubscriptions } from '../api/endpoints';
-import { BucketBars, CategoryBars } from '../components/charts';
+import { BucketBars, CategoryBars, Donut } from '../components/charts';
 import { LinkButton } from '../components/ui/Button';
 import { Card, CardHeader, DateText, EmptyState, ErrorState, KindTag, LoadingRegion, Money, ServiceIcon, Skeleton } from '../components/ui/display';
 import { SelectField } from '../components/ui/Field';
-import { Icon } from '../components/ui/Icon';
+import { Icon, type IconName } from '../components/ui/Icon';
 import { activeTotals, categoryBreakdown, renewalAmounts, upcomingRenewals } from '../lib/dashboard';
 import { formatDate, formatMonth, formatMonthShort, greetingFor, todayIn } from '../lib/dates';
-import { FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
+import { CATEGORY_SLOT, FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
 import { orderCurrencies } from '../lib/money';
 import { useApi } from '../state/data';
 import { useSession } from '../state/auth';
 import { usePageTitle, useToday } from '../state/ui';
 
-function Kpi({ id, label, kind, children }: { id: string; label: string; kind?: 'estimate' | 'projection'; children: ReactNode }) {
+function IconBubble({ name }: { name: IconName }) {
+  return (
+    <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-text ring-1 ring-line">
+      <Icon name={name} />
+    </span>
+  );
+}
+
+/** A stat tile: icon bubble, label (with its Estimate / Projection tag) and the figures. */
+function Kpi({ id, label, kind, icon, children }: { id: string; label: string; kind?: 'estimate' | 'projection'; icon: IconName; children: ReactNode }) {
   return (
     <Card aria-labelledby={id}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id={id} className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</h2>
-        {kind ? <KindTag kind={kind} /> : null}
+      <div className="flex items-start gap-4">
+        <IconBubble name={icon} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id={id} className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</h2>
+            {kind ? <KindTag kind={kind} /> : null}
+          </div>
+          <div className="mt-2 space-y-1">{children}</div>
+        </div>
       </div>
-      <div className="mt-3 space-y-1">{children}</div>
     </Card>
   );
 }
@@ -31,7 +46,7 @@ function CurrencyLines({ rows }: { rows: { currency: string; minor: number }[] }
   return (
     <>
       {rows.map((r, i) => (
-        <p key={r.currency} className={i === 0 ? 'text-2xl font-semibold text-accent-text sm:text-3xl' : 'text-lg font-semibold text-fg'}>
+        <p key={r.currency} className={i === 0 ? 'text-3xl font-bold tracking-tight text-fg sm:text-4xl' : 'text-lg font-semibold text-muted'}>
           <Money minor={r.minor} currency={r.currency} className="!whitespace-normal break-words" />
         </p>
       ))}
@@ -122,29 +137,46 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl">{greeting}</h1>
-          <p className="mt-1 text-sm text-muted">Here’s your subscription picture. Figures labelled Estimate or Projection are calculated, not money you paid.</p>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{greeting}</h1>
+          <p className="mt-2 text-sm text-muted">Here’s your subscription picture. Figures labelled Estimate or Projection are calculated, not money you paid.</p>
         </div>
-        <LinkButton to="/subscriptions/new" variant="primary"><Icon name="plus" className="h-4 w-4" />Add subscription</LinkButton>
+        <LinkButton to="/subscriptions/new" variant="primary" className="hidden sm:inline-flex"><Icon name="plus" className="h-4 w-4" />Add subscription</LinkButton>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Summary">
-        <Kpi id="kpi-monthly" label="Monthly equivalent" kind="estimate">
-          {view.totals.length ? <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.monthlyEquivalentMinor }))} /> : <p className="text-sm text-muted">No active subscriptions.</p>}
-          {view.totals.length ? <p className="text-xs text-muted">Active subscriptions at today’s prices, per currency.</p> : null}
-        </Kpi>
-        <Kpi id="kpi-annual" label="Annualized cost" kind="projection">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]" aria-label="Summary">
+        <Card aria-labelledby="kpi-monthly" className="lg:row-span-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 id="kpi-monthly" className="text-xs font-semibold uppercase tracking-wider text-muted">Monthly equivalent</h2>
+            <KindTag kind="estimate" />
+          </div>
+          {view.totals.length ? (
+            <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row">
+              <Donut shares={categoryBreakdown(subs, view.totals[0]!.currency).map((s) => ({ slot: CATEGORY_SLOT[s.category as Category], percent: s.percent }))}>
+                <span className="text-xs text-muted">{view.totals[0]!.currency}</span>
+                <span className="text-sm font-semibold">per month</span>
+              </Donut>
+              <div className="min-w-0 flex-1 space-y-1 text-center sm:text-left">
+                <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.monthlyEquivalentMinor }))} />
+                <p className="pt-2 text-xs text-muted">Active subscriptions at today’s prices, per currency.</p>
+                <p className="text-xs text-muted">The ring shows how the first currency’s total splits across categories.</p>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted">No active subscriptions.</p>
+          )}
+        </Card>
+        <Kpi id="kpi-annual" label="Annualized cost" kind="projection" icon="chart">
           {view.totals.length ? <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.annualizedMinor }))} /> : <p className="text-sm text-muted">No active subscriptions.</p>}
           {view.totals.length ? <p className="text-xs text-muted">Next 12 months if nothing changes. Not what you paid.</p> : null}
         </Kpi>
-        <Kpi id="kpi-active" label="Active subscriptions">
-          <p className="text-3xl font-semibold text-accent-text tnum">{view.counts.active}</p>
+        <Kpi id="kpi-active" label="Active subscriptions" icon="list">
+          <p className="text-4xl font-bold text-fg tnum">{view.counts.active}</p>
           <p className="text-xs text-muted">
             {view.counts.trial} on trial · {view.counts.paused} paused (not counted in totals)
           </p>
         </Kpi>
-        <Kpi id="kpi-week" label="Renewing in 7 days" kind="projection">
-          <p className="text-3xl font-semibold text-accent-text tnum">{view.week.length}</p>
+        <Kpi id="kpi-week" label="Renewing in 7 days" kind="projection" icon="calendar">
+          <p className="text-4xl font-bold text-fg tnum">{view.week.length}</p>
           {view.weekAmounts.length ? (
             <p className="text-xs text-muted">
               Due: {view.weekAmounts.map((a, i) => <span key={a.currency}>{i > 0 ? ' + ' : ''}<Money minor={a.amountMinor} currency={a.currency} /></span>)}
@@ -200,9 +232,9 @@ export function DashboardPage() {
             title="Upcoming renewals"
             tag={<KindTag kind="projection" />}
             action={
-              <div role="group" aria-label="Renewal window" className="flex gap-1 rounded-control border border-strong bg-canvas p-1">
+              <div role="group" aria-label="Renewal window" className="flex gap-1 rounded-full border border-line bg-canvas p-1">
                 {([7, 30, 90] as const).map((d) => (
-                  <button key={d} type="button" aria-pressed={windowDays === d} onClick={() => setWindowDays(d)} className={`min-h-8 rounded-[0.55rem] px-3 text-xs font-semibold ${windowDays === d ? 'bg-accent text-accent-fg' : 'text-muted hover:text-fg'}`}>
+                  <button key={d} type="button" aria-pressed={windowDays === d} onClick={() => setWindowDays(d)} className={`min-h-8 rounded-full px-3 text-xs font-semibold ${windowDays === d ? 'bg-accent-grad text-accent-fg' : 'text-muted hover:text-fg'}`}>
                     {d} days
                   </button>
                 ))}
@@ -214,12 +246,12 @@ export function DashboardPage() {
               Paused, cancelled and archived subscriptions don’t renew. Trials appear on the day they end.
             </EmptyState>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul className="space-y-2">
               {view.list.map((r) => (
                 <li key={r.subscription.id}>
                   <Link
                     to={`/subscriptions/${r.subscription.id}`}
-                    className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-control py-3 !text-fg no-underline hover:bg-raised sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-2"
+                    className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-2xl border border-transparent bg-raised/60 px-3 py-3 !text-fg no-underline hover:border-line hover:bg-raised sm:grid-cols-[auto_minmax(0,1fr)_auto]"
                   >
                     <span className="row-span-2 sm:row-span-1">
                       <ServiceIcon subscription={r.subscription} />
