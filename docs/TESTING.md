@@ -59,7 +59,7 @@ npx playwright show-trace e2e/test-results/<test>/trace.zip        # after a fai
 
 ## CI
 
-`.github/workflows/ci.yml` has three jobs on every push to `main` and every pull request: **static** (`npm ci`, typecheck, lint, build, `npm audit`), **test** (PostgreSQL service, migrations applied twice to prove idempotence, `npm test`) and **e2e** (PostgreSQL service, Chromium with system dependencies, build, Playwright; the report and traces are uploaded on failure). Node is read from `.nvmrc` (24.15.0). The workflow has not been executed on GitHub from this environment; the same commands were run locally.
+`.github/workflows/ci.yml` has three jobs on every push to `main` and every pull request: **static** (`npm ci`, typecheck, lint, build, `npm audit`), **test** (PostgreSQL service, migrations applied twice to prove idempotence, `npm test`) and **e2e** (PostgreSQL service, Chromium with system dependencies, build, Playwright; the report and traces are uploaded on failure). Node is read from `.nvmrc` (24.15.0). The workflow ran on GitHub for branch `stage-10-hardening`: its first run failed on a locale-dependent date assertion in a web test (fixed), and the second run passed all three jobs (run 40640206680). The Actions warning that `checkout@v4` / `setup-node@v4` target Node 20 (forced to Node 24) is harmless today but the actions should be bumped when newer majors are released.
 
 ## Known test limitations
 
