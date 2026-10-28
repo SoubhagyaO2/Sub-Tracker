@@ -159,3 +159,31 @@ export function Donut({ shares, size = 168, children }: { shares: { slot: number
     </div>
   );
 }
+
+/**
+ * Concentric rings (outermost first), like an activity ring: each ring is one category's share of the monthly total.
+ * Decorative: the same figures are written beside it.
+ */
+export function Rings({ rings, size = 176, children }: { rings: { slot: number; percent: number }[]; size?: number; children?: ReactNode }) {
+  const stroke = 20;
+  const gap = 4;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} aria-hidden="true" focusable="false" className="-rotate-90">
+        {rings.map((ring, i) => {
+          const r = (size - stroke) / 2 - i * (stroke + gap);
+          if (r <= 0) return null;
+          const c = 2 * Math.PI * r;
+          const len = Math.min(c, (Math.max(0, ring.percent) / 100) * c);
+          return (
+            <g key={ring.slot + ':' + i}>
+              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`var(--cat-${ring.slot})`} strokeOpacity={0.2} strokeWidth={stroke} />
+              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`var(--cat-${ring.slot})`} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len} ${c}`} />
+            </g>
+          );
+        })}
+      </svg>
+      {children ? <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</div> : null}
+    </div>
+  );
+}

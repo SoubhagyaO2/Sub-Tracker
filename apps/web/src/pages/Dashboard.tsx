@@ -2,14 +2,14 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import type { Category } from '@subcycle/shared';
 import { analyticsApi, fetchAllSubscriptions } from '../api/endpoints';
-import { BucketBars, CategoryBars, Donut } from '../components/charts';
+import { BucketBars, CategoryBars, Rings } from '../components/charts';
 import { LinkButton } from '../components/ui/Button';
 import { Card, CardHeader, DateText, EmptyState, ErrorState, KindTag, LoadingRegion, Money, ServiceIcon, Skeleton } from '../components/ui/display';
 import { SelectField } from '../components/ui/Field';
 import { Icon } from '../components/ui/Icon';
 import { activeTotals, categoryBreakdown, renewalAmounts, upcomingRenewals } from '../lib/dashboard';
 import { formatDate, formatMonth, formatMonthShort, greetingFor, todayIn } from '../lib/dates';
-import { CATEGORY_SLOT, FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
+import { CATEGORY_LABEL, CATEGORY_SLOT, FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
 import { orderCurrencies } from '../lib/money';
 import { useApi } from '../state/data';
 import { useSession } from '../state/auth';
@@ -97,6 +97,8 @@ export function DashboardPage() {
 
   const greeting = `${greetingFor(preferences.timezone)}, ${user.displayName.split(' ')[0]}`;
 
+  const heroCur = view.totals[0]?.currency;
+  const heroShares = heroCur ? categoryBreakdown(subs, heroCur).slice(0, 3) : [];
   const dateLine = new Date(`${today}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
 
   if (subs.length === 0) {
@@ -141,14 +143,23 @@ export function DashboardPage() {
           </div>
           {view.totals.length ? (
             <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row">
-              <Donut shares={categoryBreakdown(subs, view.totals[0]!.currency).map((s) => ({ slot: CATEGORY_SLOT[s.category as Category], percent: s.percent }))}>
-                <span className="text-xs text-muted">{view.totals[0]!.currency}</span>
-                <span className="text-sm font-semibold">per month</span>
-              </Donut>
-              <div className="min-w-0 flex-1 space-y-1 text-center text-[var(--cat-1)] sm:text-left">
-                <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.monthlyEquivalentMinor }))} />
-                <p className="pt-2 text-xs text-muted">Active subscriptions at today’s prices, per currency.</p>
-                <p className="text-xs text-muted">The ring shows how the first currency’s total splits across categories.</p>
+              <Rings size={176} rings={heroShares.map((h) => ({ slot: CATEGORY_SLOT[h.category as Category], percent: h.percent }))} />
+              <div className="min-w-0 flex-1 space-y-3 text-center sm:text-left">
+                <div className="space-y-1 text-[var(--cat-1)]">
+                  <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.monthlyEquivalentMinor }))} />
+                </div>
+                <p className="text-xs text-muted">Active subscriptions at today’s prices, per currency.</p>
+                <ul className="space-y-2">
+                  {heroShares.map((h) => (
+                    <li key={h.category}>
+                      <span className="block text-sm text-fg">{CATEGORY_LABEL[h.category]}</span>
+                      <span className="block text-2xl font-semibold" style={{ color: `var(--cat-${CATEGORY_SLOT[h.category as Category]})` }}>
+                        {heroShares.length > 1 ? <Money minor={h.monthlyEquivalentMinor} currency={heroCur!} /> : null}
+                        <span className={`text-sm text-muted tnum ${heroShares.length > 1 ? 'ml-2' : ''}`}>{Math.round(h.percent)}%</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           ) : (
