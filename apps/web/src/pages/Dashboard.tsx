@@ -1,6 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import type { Category } from '@subcycle/shared';
 import { analyticsApi, fetchAllSubscriptions } from '../api/endpoints';
 import { BucketBars, CategoryBars, Rings } from '../components/charts';
 import { LinkButton } from '../components/ui/Button';
@@ -9,7 +8,7 @@ import { SelectField } from '../components/ui/Field';
 import { Icon } from '../components/ui/Icon';
 import { activeTotals, categoryBreakdown, renewalAmounts, upcomingRenewals } from '../lib/dashboard';
 import { formatDate, formatMonth, formatMonthShort, greetingFor, todayIn } from '../lib/dates';
-import { CATEGORY_LABEL, CATEGORY_SLOT, FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
+import { CATEGORY_LABEL, FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
 import { orderCurrencies } from '../lib/money';
 import { useApi } from '../state/data';
 import { useSession } from '../state/auth';
@@ -49,6 +48,9 @@ function CurrencyPicker({ id, currencies, value, onChange }: { id: string; curre
     </div>
   );
 }
+
+/** Ring / legend colours are by rank, not by category: several categories share a palette colour, and two rings must never look alike. */
+const HERO_SLOTS = [1, 5, 2];
 
 export function DashboardPage() {
   usePageTitle('Home');
@@ -122,7 +124,10 @@ export function DashboardPage() {
   const records = payQ.status === 'ready' ? payQ.data.recorded : undefined;
   const recCurrencies = records ? orderCurrencies(records.currencies.map((c) => c.currency), preferences.currency) : [];
   const recCur = recCurrency && recCurrencies.includes(recCurrency) ? recCurrency : recCurrencies[0];
+  // With nothing recorded there is nothing to chart: the card appears once the first payment is recorded (how to record one is explained on each subscription and in Analytics).
   const recSeries = records && recCur ? records.currencies.find((c) => c.currency === recCur) : undefined;
+
+  const hideRecorded = payQ.status === 'ready' && (!recSeries || !recCur);
 
   return (
     <div className="space-y-6">
@@ -143,17 +148,17 @@ export function DashboardPage() {
           </div>
           {view.totals.length ? (
             <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row">
-              <Rings size={176} rings={heroShares.map((h) => ({ slot: CATEGORY_SLOT[h.category as Category], percent: h.percent }))} />
+              <Rings size={176} rings={heroShares.map((h, i) => ({ slot: HERO_SLOTS[i]!, percent: h.percent }))} />
               <div className="min-w-0 flex-1 space-y-3 text-center sm:text-left">
                 <div className="space-y-1 text-[var(--cat-1)]">
                   <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.monthlyEquivalentMinor }))} />
                 </div>
                 <p className="text-xs text-muted">Active subscriptions at today’s prices, per currency.</p>
                 <ul className="space-y-2">
-                  {heroShares.map((h) => (
+                  {heroShares.map((h, i) => (
                     <li key={h.category}>
                       <span className="block text-sm text-fg">{CATEGORY_LABEL[h.category]}</span>
-                      <span className="block text-2xl font-semibold" style={{ color: `var(--cat-${CATEGORY_SLOT[h.category as Category]})` }}>
+                      <span className="block text-2xl font-semibold" style={{ color: `var(--cat-${HERO_SLOTS[i]})` }}>
                         {heroShares.length > 1 ? <Money minor={h.monthlyEquivalentMinor} currency={heroCur!} /> : null}
                         <span className={`text-sm text-muted tnum ${heroShares.length > 1 ? 'ml-2' : ''}`}>{Math.round(h.percent)}%</span>
                       </span>
@@ -189,16 +194,13 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {hideRecorded ? null : (
         <Card className="lg:col-span-3" aria-labelledby="recorded-h">
           <CardHeader id="recorded-h" title="Recorded payments by month" tag={<KindTag kind="recorded" />} />
           {payQ.status === 'error' ? (
             <ErrorState error={payQ.error} onRetry={payQ.retry} title="We couldn’t load your payments" />
-          ) : !records ? (
+          ) : !records || !recSeries || !recCur ? (
             <LoadingRegion label="Loading recorded payments"><Skeleton className="h-48" /></LoadingRegion>
-          ) : !recSeries || !recCur ? (
-            <EmptyState title="No payments recorded yet" icon="clock">
-              This chart shows only payments you record: nothing is estimated or filled in. Open a subscription and choose “Record payment” after you’ve paid.
-            </EmptyState>
           ) : (
             <>
               <CurrencyPicker id="recorded-currency" currencies={recCurrencies} value={recCur} onChange={setRecCurrency} />
@@ -211,8 +213,9 @@ export function DashboardPage() {
             </>
           )}
         </Card>
+        )}
 
-        <Card className="lg:col-span-2" aria-labelledby="cat-h">
+        <Card className={hideRecorded ? 'lg:col-span-5' : 'lg:col-span-2'} aria-labelledby="cat-h">
           <CardHeader id="cat-h" title="Spending by category" tag={<KindTag kind="estimate" />} />
           {catCur ? (
             <>
