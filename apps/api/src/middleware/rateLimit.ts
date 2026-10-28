@@ -48,3 +48,7 @@ export const apiLimiter = (windowMs: number, limit: number) => limiter({ windowM
  */
 export const passwordConfirmLimiter = (windowMs: number, limit: number) =>
   limiter({ windowMs, limit, skipSuccessfulRequests: true, key: (req) => 'user:' + (req.auth?.userId ?? ipKeyGenerator(req.ip ?? 'unknown')) });
+
+/** Per signed-in user: each call may make the server fetch a web page, so it is limited well below the general API limit. */
+export const linkPreviewLimiter = (windowMs: number, limit: number) =>
+  limiter({ windowMs, limit, key: (req) => 'user:' + (req.auth?.userId ?? ipKeyGenerator(req.ip ?? 'unknown')) });

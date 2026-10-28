@@ -52,6 +52,8 @@ export interface Config {
     loginPerEmailMax: number;
     apiWindowMs: number;
     apiMax: number;
+    /** Pasted-link lookups per user per apiWindowMs. */
+    linkPreviewMax: number;
   };
 }
 
@@ -185,6 +187,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
       loginPerEmailMax: 10,
       apiWindowMs: 60 * 1000,
       apiMax: 300,
+      linkPreviewMax: 20,
     },
   };
 }

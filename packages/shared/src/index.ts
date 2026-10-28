@@ -11,3 +11,4 @@ export * from './recurrence.js';
 export * from './reminder.js';
 export * from './status.js';
 export * from './subscription.js';
+export * from './services.js';

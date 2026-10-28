@@ -11,4 +11,6 @@ export interface AppDeps {
   mailer: Mailer;
   /** Optional: tests inject a logger with a capturing stream; production builds its own from the config. */
   logger?: Logger;
+  /** Optional: tests inject a fake page transport / resolver for the pasted-link lookup. */
+  linkPreview?: import('./services/linkPreview.js').PreviewDeps;
 }

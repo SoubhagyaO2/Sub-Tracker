@@ -58,6 +58,11 @@ No Radix UI, lucide or Recharts: dialogs are a small custom component, icons are
 ## Stage 9: verified in a real browser
 The production build is exercised by the Playwright suite (see [TESTING.md](TESTING.md)) under a strict Content-Security-Policy, in both themes at 320 / 390 / 820 / 1280 px: no horizontal overflow, axe-core (including colour contrast, which jsdom cannot measure) clean on every page and dialog, keyboard/focus behaviour asserted. Defects it found and that were fixed: links relied on colour alone (links are now underlined unless a component opts out), and the "Mark as read" button's accessible name did not contain its visible text.
 
+## Quick start on the add form
+- **Type-ahead** on "Service name" (new subscriptions only): a WAI-ARIA combobox over a built-in list of about 90 well-known services. Arrow keys move, **Enter picks** (and only then does not submit the form), Escape closes, Tab leaves without picking. A pick fills name, category, website and an emoji icon, and **only into fields the user has not already set**.
+- **Paste a link**: "Fill from link" (or Enter in that field). Known services are recognised in the browser with no request; anything else is looked up by the server (`POST /api/link-preview`) and offered as a suggestion that says where the name came from (page title, or the web address when the page could not be read).
+- The list holds **no prices, plans, billing dates or cancellation links**, and the lookup never reads them: the price and next billing date are always typed by the user. The edit form is unchanged.
+
 ## Known limitations
 - List filters/sorts that use the saved billing date lag until the next scheduler cycle rolls them forward (at most `SCHEDULER_INTERVAL_SECONDS`, default 5 minutes, while the API runs); the per-row effective date is always exact.
 - Verified in jsdom (unit/component/integration, including a run against the real API and PostgreSQL) and by the Playwright suite in Chromium only. Not tested: Firefox, WebKit, real mobile devices, screen readers (no manual assistive-technology pass has been done).
