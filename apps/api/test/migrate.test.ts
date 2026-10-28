@@ -142,6 +142,14 @@ describe('migration runner (scratch database)', () => {
       await expect(migrate(p, tmp)).rejects.toThrow(/checksum mismatch/);
       writeFileSync(file, original);
 
+      // Line endings are not a modification: the same file saved with CRLF (a Windows checkout) or LF (Linux) is accepted.
+      const lf = original.replace(/\r\n/g, '\n');
+      writeFileSync(file, lf.replace(/\n/g, '\r\n'));
+      expect(await migrate(p, tmp)).toEqual([]);
+      writeFileSync(file, lf);
+      expect(await migrate(p, tmp)).toEqual([]);
+      writeFileSync(file, original);
+
       // A failing migration leaves no partial effect and is not recorded.
       writeFileSync(path.join(tmp, '0002_bad.sql'), 'CREATE TABLE half_done (id int); SELECT 1/0;');
       await expect(migrate(p, tmp)).rejects.toThrow(/0002_bad.sql failed/);
