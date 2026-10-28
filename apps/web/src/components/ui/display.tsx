@@ -118,8 +118,8 @@ function PictureIcon({ src, box, fallback }: { src: string; box: string; fallbac
   );
 }
 
-export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<SubscriptionDto, 'name' | 'icon' | 'category'>; size?: 'md' | 'lg' }) {
-  const box = size === 'lg' ? 'h-14 w-14 text-2xl' : 'h-10 w-10 text-lg';
+export function ServiceIcon({ subscription, size = 'md' }: { subscription: Pick<SubscriptionDto, 'name' | 'icon' | 'category'>; size?: 'xs' | 'md' | 'lg' }) {
+  const box = size === 'lg' ? 'h-14 w-14 text-2xl' : size === 'xs' ? 'h-6 w-6 text-[11px]' : 'h-10 w-10 text-lg';
   const brand = subscription.icon?.kind === 'glyph' ? BRAND_ICONS[subscription.icon.value] : undefined;
   if (brand?.image) {
     return (
