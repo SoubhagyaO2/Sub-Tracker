@@ -135,8 +135,8 @@ export function DashboardPage() {
         <LinkButton to="/subscriptions/new" variant="primary" className="hidden sm:inline-flex"><Icon name="plus" className="h-4 w-4" />Add subscription</LinkButton>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]" aria-label="Summary">
-        <Card aria-labelledby="kpi-monthly" className="lg:row-span-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Summary">
+        <Card aria-labelledby="kpi-monthly" className="sm:col-span-2 lg:col-span-3">
           <div className="-mx-4 mb-1 flex flex-wrap items-center gap-2 border-b border-line px-4 pb-3 sm:-mx-6 sm:px-6">
             <h2 id="kpi-monthly" className="text-lg">Monthly equivalent</h2>
             <KindTag kind="estimate" />
