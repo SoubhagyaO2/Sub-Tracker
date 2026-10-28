@@ -23,7 +23,7 @@ is converted.
 
 | Verified (2026-10-28) | Not established |
 |---|---|
-| 1,228 API tests (real PostgreSQL), 414 web tests and 59 real-browser tests pass locally; CI (Ubuntu 24.04, Node from `.nvmrc`) runs the same three jobs on every pull request | Behaviour under real load: no performance or concurrency measurements were made |
+| 1,239 API tests (real PostgreSQL), 414 web tests and 59 real-browser tests pass locally; CI (Ubuntu 24.04, Node from `.nvmrc`) runs the same three jobs on every pull request | Behaviour under real load: no performance or concurrency measurements were made |
 | Every page and dialog passes axe-core (contrast, structure, names) in Chromium at 320, 390, 820 and 1280 px, with no horizontal overflow and keyboard-only flows covered | A manual screen-reader pass, and Firefox or Safari (WebKit): only Chromium was tested |
 | Money is stored as whole minor units (paise, cents); currencies are totalled separately and never combined (tested on dashboard and analytics) | That the numbers match what you were really charged: SubCycle cannot know, so calculated figures are labelled as such and recorded payments are only what you entered |
 | The pasted-link lookup refused loopback, private and link-local (cloud-metadata) addresses, decimal, hex and octal IP spellings, internal-looking names, non-https schemes, and names that resolve to a private address; uploaded pictures are checked against the file's own header | Email delivery: it was tested with an in-process fake mailer, never against a real SMTP provider, so email stays off until you verify one |
@@ -118,7 +118,7 @@ npm run dev:web              # web app on http://localhost:5173 (terminal 2)
 ```
 
 Open <http://localhost:5173> and create an account. No email provider is configured by default, so
-email verification and email reminders are reported as unavailable (never as "sent"). Everything else
+email verification, password reset by email and email reminders are reported as unavailable (never as "sent"); [docs/EMAIL.md](docs/EMAIL.md) is the checklist for turning email on. Everything else
 works.
 
 ## Adding subscriptions quickly
@@ -168,7 +168,7 @@ Settings come from environment variables or `.env` (never commit it). See `.env.
 
 ```bash
 npm run typecheck && npm run lint && npm run build
-npm test                     # 1,228 API + 414 web tests, against the disposable `subcycle_test` database
+npm test                     # 1,239 API + 414 web tests, against the disposable `subcycle_test` database
 npm audit
 npx playwright install chromium     # once
 npm run test:e2e                    # 59 browser tests: builds, starts the API and web servers itself, creates `subcycle_e2e`
@@ -185,7 +185,7 @@ Verification of this release, 2026-10-28 (smoke and regression checks; the test 
 from this run):
 
 - **Local, Windows 11, Node 24.13.0 (the project pins 24.15.0):** typecheck, lint and build clean;
-  1,228 API and 414 web tests passed; 59 Playwright tests passed in Chromium; `npm audit` reported
+  1,239 API and 414 web tests passed; 59 Playwright tests passed in Chromium; `npm audit` reported
   0 vulnerabilities.
 - **CI, GitHub Actions on Ubuntu 24.04 with PostgreSQL 16 and Node from `.nvmrc`:** typecheck, lint,
   build and audit; unit and integration tests; and the browser suite passed on pull requests #2, #3 and #5.
@@ -218,7 +218,7 @@ scripts/         Brand-logo generator, backup and restore verification
 
 ## Documentation
 
-[SPEC](docs/SPEC.md) · [API](docs/API.md) · [DATA_MODEL](docs/DATA_MODEL.md) · [FRONTEND](docs/FRONTEND.md) · [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) · [SECURITY](docs/SECURITY.md) · [OPERATIONS](docs/OPERATIONS.md) · [RELEASE](docs/RELEASE.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [TESTING](docs/TESTING.md)
+[SPEC](docs/SPEC.md) · [API](docs/API.md) · [DATA_MODEL](docs/DATA_MODEL.md) · [FRONTEND](docs/FRONTEND.md) · [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) · [SECURITY](docs/SECURITY.md) · [OPERATIONS](docs/OPERATIONS.md) · [EMAIL](docs/EMAIL.md) · [RELEASE](docs/RELEASE.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [TESTING](docs/TESTING.md)
 
 ## Third-party artwork
 

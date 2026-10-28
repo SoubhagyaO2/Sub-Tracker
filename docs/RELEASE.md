@@ -101,6 +101,8 @@ This exact CSP is what the browser suite runs under (`apps/web/vite.config.ts` â
 
 ## Verifying a real SMTP provider (manual, not yet done)
 
+**The step-by-step checklist, including `npm run admin:test-email` and the password-reset checks, is [EMAIL.md](EMAIL.md); use it.** The list below is the original summary.
+
 Nothing in this repository has sent a message through a real provider. Do this once, on a non-production database or with a throwaway account, before turning email on for users:
 
 1. Create a sending identity at the provider (SPF/DKIM set up for the sending domain) and an SMTP credential.
