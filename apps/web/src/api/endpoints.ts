@@ -11,6 +11,7 @@ import type {
   CreateSubscriptionInput,
   LinkPreview,
   LoginInput,
+  PasswordResetConfirmInput,
   PaymentDto,
   PreferencesDto,
   PriceChangeDto,
@@ -73,6 +74,10 @@ export const authApi = {
   login: (input: LoginInput) => request<SessionPayload>('POST', '/api/auth/login', { body: input, skipAuthRedirect: true }).then((r) => r.data),
   register: (input: RegisterInput) => request<SessionPayload>('POST', '/api/auth/register', { body: input, skipAuthRedirect: true }).then((r) => r.data),
   logout: () => request<void>('POST', '/api/auth/logout', { skipAuthRedirect: true }).then(() => undefined),
+  /** 202 whether or not the address has an account; 503 when the server has no email provider; 429 when asked too often. */
+  requestPasswordReset: (email: string) => request<{ requested: boolean }>('POST', '/api/auth/password-reset/request', { body: { email }, skipAuthRedirect: true }).then((r) => r.data),
+  /** The token from the reset link is the credential. 400 invalid or expired; 422 (field `newPassword`) when the password is refused. */
+  confirmPasswordReset: (input: PasswordResetConfirmInput) => request<{ reset: boolean }>('POST', '/api/auth/password-reset/confirm', { body: input, skipAuthRedirect: true }).then((r) => r.data),
 };
 
 export const linkPreviewApi = {

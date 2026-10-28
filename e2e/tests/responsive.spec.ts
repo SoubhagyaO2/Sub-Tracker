@@ -93,13 +93,13 @@ for (const theme of THEMES) {
   }
 }
 
-test('sign-in and registration pages: no overflow and no axe violations at every width, both themes', async ({ page }) => {
+test('sign-in, registration and password-reset pages: no overflow and no axe violations at every width, both themes', async ({ page }) => {
   test.setTimeout(120_000);
   const problems: string[] = [];
   for (const theme of THEMES) {
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 800 });
-      for (const path of ['/login', '/register']) {
+      for (const path of ['/login', '/register', '/forgot-password', '/reset-password#token=abcdefghijklmnopqrstuvwxyz0123456789']) {
         await page.emulateMedia({ colorScheme: theme });
         await page.goto(path);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

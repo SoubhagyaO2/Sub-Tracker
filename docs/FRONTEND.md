@@ -12,7 +12,7 @@ npm run dev:web        # Vite on :5173, proxies /api to :3001 (same origin: cook
 ## Routes
 | Route | Screen |
 |---|---|
-| `/login`, `/register` | Auth (signed-in users are redirected on) |
+| `/login`, `/register`, `/forgot-password` | Auth (signed-in users are redirected on) |
 | `/` | Dashboard |
 | `/subscriptions` | Library: search, filters, sort, pagination (all state lives in the URL) |
 | `/subscriptions/new`, `/subscriptions/:id/edit` | Create / edit form |
@@ -22,6 +22,7 @@ npm run dev:web        # Vite on :5173, proxies /api to :3001 (same origin: cook
 | `/reminders` | Inbox (mark as read), reminder settings, delivery log with skip reasons |
 | `/settings` | Preferred currency, time zone (there is no theme option: the app is dark only); reminder summary (links to `/reminders`); name and email status; change password; delete account |
 | `/verify-email?token=` | Landing page for the emailed verification link (public; the token is submitted once) |
+| `/reset-password#token=` | Landing page for the password-reset link (public). The token is read from the URL **fragment**, removed from the address bar, and submitted once with the new password; opening another link in the same tab starts fresh. Without a token it explains instead of showing a form |
 
 Everything except login/register requires a session; unauthenticated visits go to `/login` and return afterwards. Settings is in the account menu and the desktop sidebar; export is a later stage and is **not** linked (no dead navigation). `/verify-email` is public because the emailed token is the credential.
 

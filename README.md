@@ -23,7 +23,7 @@ is converted.
 
 | Verified (2026-10-28) | Not established |
 |---|---|
-| 1,208 API tests (real PostgreSQL), 403 web tests and 56 real-browser tests pass; all three CI jobs passed on pull request #2 (Ubuntu 24.04, Node from `.nvmrc`) | Behaviour under real load: no performance or concurrency measurements were made |
+| 1,228 API tests (real PostgreSQL), 414 web tests and 59 real-browser tests pass locally; CI (Ubuntu 24.04, Node from `.nvmrc`) runs the same three jobs on every pull request | Behaviour under real load: no performance or concurrency measurements were made |
 | Every page and dialog passes axe-core (contrast, structure, names) in Chromium at 320, 390, 820 and 1280 px, with no horizontal overflow and keyboard-only flows covered | A manual screen-reader pass, and Firefox or Safari (WebKit): only Chromium was tested |
 | Money is stored as whole minor units (paise, cents); currencies are totalled separately and never combined (tested on dashboard and analytics) | That the numbers match what you were really charged: SubCycle cannot know, so calculated figures are labelled as such and recorded payments are only what you entered |
 | The pasted-link lookup refused loopback, private and link-local (cloud-metadata) addresses, decimal, hex and octal IP spellings, internal-looking names, non-https schemes, and names that resolve to a private address; uploaded pictures are checked against the file's own header | Email delivery: it was tested with an in-process fake mailer, never against a real SMTP provider, so email stays off until you verify one |
@@ -33,9 +33,11 @@ is converted.
 
 **Before you try it:**
 
-- **There is no password reset, email change or multi-factor sign-in**, and sessions cannot be
-  listed. A lost password with no open session needs the operator to intervene. Registration is open
-  unless you restrict access at your reverse proxy.
+- **Password reset needs email.** "Forgot your password?" emails a one-hour link once you configure
+  an email provider; until then the page says it is unavailable and the operator issues a one-time
+  link with `npm run admin:reset-link -- person@example.com`. There is still no email change or
+  multi-factor sign-in, and sessions cannot be listed. Registration is open unless you restrict
+  access at your reverse proxy.
 - **Run one API process.** Rate limits are kept in memory, per process, and the guarantees about
   the reminder scheduler assume a single instance.
 - **Reminders only run while the API runs.** After downtime, reminders still before their renewal
@@ -52,7 +54,7 @@ is converted.
 | Part | Where | What it does |
 |---|---|---|
 | Web app | `apps/web/` | Dashboard, subscription list and detail, add/edit form with type-ahead and link lookup, renewal calendar, analytics, reminders inbox, settings. React 19, Vite, Tailwind CSS 4 |
-| API | `apps/api/` | Sign-up and sessions, subscriptions, payments and price history, calendar, analytics, reminders, link lookup, picture upload, CSV export. Express 5 on PostgreSQL |
+| API | `apps/api/` | Sign-up, sessions and password reset, subscriptions, payments and price history, calendar, analytics, reminders, link lookup, picture upload, CSV export. Express 5 on PostgreSQL |
 | Scheduler | `apps/api/src/scheduler` | Runs inside the API: rolls stale billing dates forward, plans and delivers reminders, purges expired sessions |
 | Shared code | `packages/shared/` | Zod schemas, date and money logic, and the built-in service list, used by both the API and the web app so they cannot disagree |
 | Browser tests | `e2e/` | Playwright against the built API and web app and a real database, with axe-core on every page |
@@ -166,10 +168,10 @@ Settings come from environment variables or `.env` (never commit it). See `.env.
 
 ```bash
 npm run typecheck && npm run lint && npm run build
-npm test                     # 1,208 API + 403 web tests, against the disposable `subcycle_test` database
+npm test                     # 1,228 API + 414 web tests, against the disposable `subcycle_test` database
 npm audit
 npx playwright install chromium     # once
-npm run test:e2e                    # 56 browser tests: builds, starts the API and web servers itself, creates `subcycle_e2e`
+npm run test:e2e                    # 59 browser tests: builds, starts the API and web servers itself, creates `subcycle_e2e`
 ```
 
 The destructive tests refuse to run unless the database name ends in `_test` or `_e2e`. See
@@ -183,20 +185,22 @@ Verification of this release, 2026-10-28 (smoke and regression checks; the test 
 from this run):
 
 - **Local, Windows 11, Node 24.13.0 (the project pins 24.15.0):** typecheck, lint and build clean;
-  1,208 API and 403 web tests passed; 56 Playwright tests passed in Chromium; `npm audit` reported
+  1,228 API and 414 web tests passed; 59 Playwright tests passed in Chromium; `npm audit` reported
   0 vulnerabilities.
 - **CI, GitHub Actions on Ubuntu 24.04 with PostgreSQL 16 and Node from `.nvmrc`:** typecheck, lint,
-  build and audit; unit and integration tests; and the browser suite all passed on pull request #2.
+  build and audit; unit and integration tests; and the browser suite passed on pull requests #2, #3 and #5.
+  The password-reset change is verified locally as above; its CI result is on its own pull request.
 - **Browser, Chromium via Playwright:** sign-up and sign-in, create, edit (with price history),
   pause, resume, cancel and delete; recording payments including the duplicate-renewal guard;
-  currencies kept apart; calendar keyboard navigation; reminders created and delivered by the real
+  password reset, driven with the real built operator command (new password set, every device signed
+  out, link works once); currencies kept apart; calendar keyboard navigation; reminders created and delivered by the real
   scheduler; settings, password change and account deletion; and axe-core on every page and dialog.
 - **A real bug found while preparing this README:** on Windows, Git converts line endings, so a
   migration file no longer matched its recorded checksum and the servers refused to start. The
   checksum now ignores line endings (existing databases keep working; an edited migration is still
   rejected) and `.sql` files are kept LF.
 
-Not verified: real email delivery (no SMTP provider was used), more than one API process, behaviour
+Not verified: real email delivery, including the password-reset email (no SMTP provider was used), more than one API process, behaviour
 under load, Firefox and WebKit, a manual screen-reader session, a TLS-enforced database, and any
 hosted deployment. The accessibility checks are automated plus keyboard flows; they do not replace
 testing with real assistive technology.

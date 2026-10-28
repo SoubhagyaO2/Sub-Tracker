@@ -35,6 +35,8 @@ export interface Config {
     touchIntervalMs: number;
   };
   emailVerification: { tokenTtlMs: number; resendCooldownMs: number };
+  /** Forgot-password links: short-lived and single use. */
+  passwordReset: { tokenTtlMs: number };
   scheduler: {
     /** Run the background scheduler inside this API process. Set false to run the API without it (e.g. a dedicated worker elsewhere). */
     enabled: boolean;
@@ -50,6 +52,8 @@ export interface Config {
     authWindowMs: number;
     authMax: number;
     loginPerEmailMax: number;
+    /** Password-reset requests per submitted email per authWindowMs (counted whether or not the account exists). */
+    resetPerEmailMax: number;
     apiWindowMs: number;
     apiMax: number;
     /** Pasted-link lookups per user per apiWindowMs. */
@@ -173,6 +177,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
       touchIntervalMs: 5 * 60 * 1000,
     },
     emailVerification: { tokenTtlMs: DAY_MS, resendCooldownMs: 60 * 1000 },
+    passwordReset: { tokenTtlMs: 60 * 60 * 1000 },
     scheduler: {
       enabled: e.SCHEDULER_ENABLED === 'true',
       intervalMs: e.SCHEDULER_INTERVAL_SECONDS * 1000,
@@ -185,6 +190,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
       authWindowMs: 15 * 60 * 1000,
       authMax: 10,
       loginPerEmailMax: 10,
+      resetPerEmailMax: 5,
       apiWindowMs: 60 * 1000,
       apiMax: 300,
       linkPreviewMax: 20,

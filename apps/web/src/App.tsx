@@ -10,6 +10,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { RemindersPage } from './pages/RemindersPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
+import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordResetPages';
 import { EditSubscriptionPage, NewSubscriptionPage } from './pages/SubscriptionFormPages';
 import { SubscriptionDetailPage } from './pages/SubscriptionDetail';
 import { SubscriptionListPage } from './pages/SubscriptionList';
@@ -92,9 +93,12 @@ export function AppRoutes() {
       <Route element={<PublicOnly />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
       {/* The emailed link works with or without a session: the token is the credential. */}
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      {/* The reset link works with or without a session: the token (in the URL fragment) is the credential. */}
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route element={<RequireAuth />}>
         <Route index element={<DashboardPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
