@@ -15,7 +15,7 @@ git clone <repo> subcycle && cd subcycle
 nvm use                      # or any Node satisfying the range above
 npm ci
 cp .env.example .env         # development defaults; edit nothing for a local run
-npm run db:up                # PostgreSQL 16 in Docker on 127.0.0.1:5434; creates `subcycle` and `subcycle_test`
+npm run db:up                # PostgreSQL 16 in Docker on 127.0.0.1:5434; creates `subcycle` and `subcycle_test` (the second only on a brand-new volume; on an existing one run `npm run db:reset`, which DELETES the local development data)
 npm run migrate              # applies apps/api/migrations to the development database
 npm run dev:api              # API on http://localhost:3001  (terminal 1)
 npm run dev:web              # web app on http://localhost:5173 (terminal 2)
@@ -42,4 +42,4 @@ See [docs/TESTING.md](docs/TESTING.md) for environment variables, safety rules a
 
 ## Documentation
 
-[SPEC](docs/SPEC.md) · [API](docs/API.md) · [DATA_MODEL](docs/DATA_MODEL.md) · [FRONTEND](docs/FRONTEND.md) · [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) · [SECURITY](docs/SECURITY.md) · [OPERATIONS](docs/OPERATIONS.md) · [RELEASE](docs/RELEASE.md) · [TESTING](docs/TESTING.md)
+[SPEC](docs/SPEC.md) · [API](docs/API.md) · [DATA_MODEL](docs/DATA_MODEL.md) · [FRONTEND](docs/FRONTEND.md) · [DESIGN_SYSTEM](docs/DESIGN_SYSTEM.md) · [SECURITY](docs/SECURITY.md) · [OPERATIONS](docs/OPERATIONS.md) · [RELEASE](docs/RELEASE.md) · [DEPLOYMENT](docs/DEPLOYMENT.md) · [TESTING](docs/TESTING.md)
