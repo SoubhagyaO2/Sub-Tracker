@@ -17,7 +17,7 @@ import {
   type SubscriptionStatus,
 } from '@subcycle/shared';
 import type { Queryable } from '../db/pool.js';
-import { validationError } from './subscriptions.js';
+import { iconDto, validationError } from './subscriptions.js';
 
 export interface SubRow {
   id: string;
@@ -25,6 +25,7 @@ export interface SubRow {
   category: Category;
   icon_kind: 'none' | 'glyph' | 'emoji';
   icon_value: string | null;
+  icon_image_version: string | null;
   amount_minor: number;
   currency: CurrencyCode;
   billing_frequency: BillingFrequency;
@@ -36,7 +37,7 @@ export interface SubRow {
 
 export const toCalendarSub = (r: SubRow): CalendarSub => ({
   id: r.id, name: r.name, category: r.category,
-  icon: r.icon_kind === 'none' || r.icon_value === null ? null : { kind: r.icon_kind, value: r.icon_value },
+  icon: iconDto(r),
   amountMinor: r.amount_minor, currency: r.currency, billingFrequency: r.billing_frequency, status: r.status,
   anchorDate: r.anchor_date, nextBillingDate: r.next_billing_date, trialEndDate: r.trial_end_date,
 });
@@ -44,7 +45,7 @@ export const toCalendarSub = (r: SubRow): CalendarSub => ({
 /** The subscriptions that can produce projected occurrences. Scoped to the user; read-only. */
 export async function loadBillableSubs(db: Queryable, userId: string): Promise<CalendarSub[]> {
   const { rows } = await db.query<SubRow>(
-    `SELECT id, name, category, icon_kind, icon_value, amount_minor, currency, billing_frequency, status,
+    `SELECT id, name, category, icon_kind, icon_value, icon_image_version, amount_minor, currency, billing_frequency, status,
             anchor_date, next_billing_date, trial_end_date
        FROM subscriptions WHERE user_id = $1 AND status IN ('active', 'trial') ORDER BY id`,
     [userId],

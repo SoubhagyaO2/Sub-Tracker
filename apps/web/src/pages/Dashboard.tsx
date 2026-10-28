@@ -1,27 +1,28 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { analyticsApi, fetchAllSubscriptions } from '../api/endpoints';
-import { BucketBars, CategoryBars } from '../components/charts';
+import { BucketBars, CategoryBars, Rings } from '../components/charts';
 import { LinkButton } from '../components/ui/Button';
 import { Card, CardHeader, DateText, EmptyState, ErrorState, KindTag, LoadingRegion, Money, ServiceIcon, Skeleton } from '../components/ui/display';
 import { SelectField } from '../components/ui/Field';
 import { Icon } from '../components/ui/Icon';
 import { activeTotals, categoryBreakdown, renewalAmounts, upcomingRenewals } from '../lib/dashboard';
 import { formatDate, formatMonth, formatMonthShort, greetingFor, todayIn } from '../lib/dates';
-import { FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
+import { CATEGORY_LABEL, FREQUENCY_UNIT, PAYMENT_STATUS_LABEL } from '../lib/labels';
 import { orderCurrencies } from '../lib/money';
 import { useApi } from '../state/data';
 import { useSession } from '../state/auth';
 import { usePageTitle, useToday } from '../state/ui';
 
-function Kpi({ id, label, kind, children }: { id: string; label: string; kind?: 'estimate' | 'projection'; children: ReactNode }) {
+/** A stat tile: title row with a divider, then a large coloured figure (colour is decoration; the label and figure carry the meaning). */
+function Kpi({ id, label, kind, color, children }: { id: string; label: string; kind?: 'estimate' | 'projection'; color: number; children: ReactNode }) {
   return (
     <Card aria-labelledby={id}>
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 id={id} className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</h2>
+      <div className="-mx-4 mb-4 flex flex-wrap items-center gap-2 border-b border-line px-4 pb-3 sm:-mx-6 sm:px-6">
+        <h2 id={id} className="text-lg">{label}</h2>
         {kind ? <KindTag kind={kind} /> : null}
       </div>
-      <div className="mt-3 space-y-1">{children}</div>
+      <div className="space-y-1" style={{ color: `var(--cat-${color})` }}>{children}</div>
     </Card>
   );
 }
@@ -31,7 +32,7 @@ function CurrencyLines({ rows }: { rows: { currency: string; minor: number }[] }
   return (
     <>
       {rows.map((r, i) => (
-        <p key={r.currency} className={i === 0 ? 'text-2xl font-semibold text-accent-text sm:text-3xl' : 'text-lg font-semibold text-fg'}>
+        <p key={r.currency} className={i === 0 ? 'text-3xl font-semibold tracking-tight sm:text-4xl' : 'text-lg font-semibold'}>
           <Money minor={r.minor} currency={r.currency} className="!whitespace-normal break-words" />
         </p>
       ))}
@@ -47,6 +48,9 @@ function CurrencyPicker({ id, currencies, value, onChange }: { id: string; curre
     </div>
   );
 }
+
+/** Ring / legend colours are by rank, not by category: several categories share a palette colour, and two rings must never look alike. */
+const HERO_SLOTS = [1, 5, 2];
 
 export function DashboardPage() {
   usePageTitle('Home');
@@ -95,6 +99,10 @@ export function DashboardPage() {
 
   const greeting = `${greetingFor(preferences.timezone)}, ${user.displayName.split(' ')[0]}`;
 
+  const heroCur = view.totals[0]?.currency;
+  const heroShares = heroCur ? categoryBreakdown(subs, heroCur).slice(0, 3) : [];
+  const dateLine = new Date(`${today}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+
   if (subs.length === 0) {
     return (
       <>
@@ -116,35 +124,65 @@ export function DashboardPage() {
   const records = payQ.status === 'ready' ? payQ.data.recorded : undefined;
   const recCurrencies = records ? orderCurrencies(records.currencies.map((c) => c.currency), preferences.currency) : [];
   const recCur = recCurrency && recCurrencies.includes(recCurrency) ? recCurrency : recCurrencies[0];
+  // With nothing recorded there is nothing to chart: the card appears once the first payment is recorded (how to record one is explained on each subscription and in Analytics).
   const recSeries = records && recCur ? records.currencies.find((c) => c.currency === recCur) : undefined;
+
+  const hideRecorded = payQ.status === 'ready' && (!recSeries || !recCur);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl">{greeting}</h1>
-          <p className="mt-1 text-sm text-muted">Here’s your subscription picture. Figures labelled Estimate or Projection are calculated, not money you paid.</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-muted">{dateLine}</p>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">{greeting}</h1>
+          <p className="mt-2 text-sm text-muted">Here’s your subscription picture. Totals and forecasts here are calculated, not money you paid.</p>
         </div>
-        <LinkButton to="/subscriptions/new" variant="primary"><Icon name="plus" className="h-4 w-4" />Add subscription</LinkButton>
+        <LinkButton to="/subscriptions/new" variant="primary" className="hidden sm:inline-flex"><Icon name="plus" className="h-4 w-4" />Add subscription</LinkButton>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Summary">
-        <Kpi id="kpi-monthly" label="Monthly equivalent" kind="estimate">
-          {view.totals.length ? <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.monthlyEquivalentMinor }))} /> : <p className="text-sm text-muted">No active subscriptions.</p>}
-          {view.totals.length ? <p className="text-xs text-muted">Active subscriptions at today’s prices, per currency.</p> : null}
-        </Kpi>
-        <Kpi id="kpi-annual" label="Annualized cost" kind="projection">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Summary">
+        <Card aria-labelledby="kpi-monthly" className="sm:col-span-2 lg:col-span-3">
+          <div className="-mx-4 mb-1 flex flex-wrap items-center gap-2 border-b border-line px-4 pb-3 sm:-mx-6 sm:px-6">
+            <h2 id="kpi-monthly" className="text-lg">Monthly equivalent</h2>
+            <KindTag kind="estimate" />
+          </div>
+          {view.totals.length ? (
+            <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row">
+              <Rings size={176} rings={heroShares.map((h, i) => ({ slot: HERO_SLOTS[i]!, percent: h.percent }))} />
+              <div className="min-w-0 flex-1 space-y-3 text-center sm:text-left">
+                <div className="space-y-1 text-[var(--cat-1)]">
+                  <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.monthlyEquivalentMinor }))} />
+                </div>
+                <p className="text-xs text-muted">Active subscriptions at today’s prices, per currency.</p>
+                <ul className="space-y-2">
+                  {heroShares.map((h, i) => (
+                    <li key={h.category}>
+                      <span className="block text-sm text-fg">{CATEGORY_LABEL[h.category]}</span>
+                      <span className="block text-2xl font-semibold" style={{ color: `var(--cat-${HERO_SLOTS[i]})` }}>
+                        {heroShares.length > 1 ? <Money minor={h.monthlyEquivalentMinor} currency={heroCur!} /> : null}
+                        <span className={`text-sm text-muted tnum ${heroShares.length > 1 ? 'ml-2' : ''}`}>{Math.round(h.percent)}%</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-muted">No active subscriptions.</p>
+          )}
+        </Card>
+        <Kpi id="kpi-annual" label="Annualized cost" kind="projection" color={4}>
           {view.totals.length ? <CurrencyLines rows={view.totals.map((t) => ({ currency: t.currency, minor: t.annualizedMinor }))} /> : <p className="text-sm text-muted">No active subscriptions.</p>}
           {view.totals.length ? <p className="text-xs text-muted">Next 12 months if nothing changes. Not what you paid.</p> : null}
         </Kpi>
-        <Kpi id="kpi-active" label="Active subscriptions">
-          <p className="text-3xl font-semibold text-accent-text tnum">{view.counts.active}</p>
+        <Kpi id="kpi-active" label="Active subscriptions" color={5}>
+          <p className="text-4xl font-semibold tnum">{view.counts.active}</p>
           <p className="text-xs text-muted">
             {view.counts.trial} on trial · {view.counts.paused} paused (not counted in totals)
           </p>
         </Kpi>
-        <Kpi id="kpi-week" label="Renewing in 7 days" kind="projection">
-          <p className="text-3xl font-semibold text-accent-text tnum">{view.week.length}</p>
+        <Kpi id="kpi-week" label="Renewing in 7 days" kind="projection" color={2}>
+          <p className="text-4xl font-semibold tnum">{view.week.length}</p>
           {view.weekAmounts.length ? (
             <p className="text-xs text-muted">
               Due: {view.weekAmounts.map((a, i) => <span key={a.currency}>{i > 0 ? ' + ' : ''}<Money minor={a.amountMinor} currency={a.currency} /></span>)}
@@ -156,16 +194,13 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {hideRecorded ? null : (
         <Card className="lg:col-span-3" aria-labelledby="recorded-h">
           <CardHeader id="recorded-h" title="Recorded payments by month" tag={<KindTag kind="recorded" />} />
           {payQ.status === 'error' ? (
             <ErrorState error={payQ.error} onRetry={payQ.retry} title="We couldn’t load your payments" />
-          ) : !records ? (
+          ) : !records || !recSeries || !recCur ? (
             <LoadingRegion label="Loading recorded payments"><Skeleton className="h-48" /></LoadingRegion>
-          ) : !recSeries || !recCur ? (
-            <EmptyState title="No payments recorded yet" icon="clock">
-              This chart shows only payments you record: nothing is estimated or filled in. Open a subscription and choose “Record payment” after you’ve paid.
-            </EmptyState>
           ) : (
             <>
               <CurrencyPicker id="recorded-currency" currencies={recCurrencies} value={recCur} onChange={setRecCurrency} />
@@ -178,8 +213,9 @@ export function DashboardPage() {
             </>
           )}
         </Card>
+        )}
 
-        <Card className="lg:col-span-2" aria-labelledby="cat-h">
+        <Card className={hideRecorded ? 'lg:col-span-5' : 'lg:col-span-2'} aria-labelledby="cat-h">
           <CardHeader id="cat-h" title="Spending by category" tag={<KindTag kind="estimate" />} />
           {catCur ? (
             <>
@@ -200,9 +236,9 @@ export function DashboardPage() {
             title="Upcoming renewals"
             tag={<KindTag kind="projection" />}
             action={
-              <div role="group" aria-label="Renewal window" className="flex gap-1 rounded-control border border-strong bg-canvas p-1">
+              <div role="group" aria-label="Renewal window" className="flex gap-1 rounded-full border border-line bg-canvas p-1">
                 {([7, 30, 90] as const).map((d) => (
-                  <button key={d} type="button" aria-pressed={windowDays === d} onClick={() => setWindowDays(d)} className={`min-h-8 rounded-[0.55rem] px-3 text-xs font-semibold ${windowDays === d ? 'bg-accent text-accent-fg' : 'text-muted hover:text-fg'}`}>
+                  <button key={d} type="button" aria-pressed={windowDays === d} onClick={() => setWindowDays(d)} className={`min-h-8 rounded-full px-3 text-xs font-semibold ${windowDays === d ? 'bg-accent-grad text-accent-fg' : 'text-muted hover:text-fg'}`}>
                     {d} days
                   </button>
                 ))}
@@ -214,12 +250,12 @@ export function DashboardPage() {
               Paused, cancelled and archived subscriptions don’t renew. Trials appear on the day they end.
             </EmptyState>
           ) : (
-            <ul className="divide-y divide-line">
+            <ul className="space-y-2">
               {view.list.map((r) => (
                 <li key={r.subscription.id}>
                   <Link
                     to={`/subscriptions/${r.subscription.id}`}
-                    className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-control py-3 !text-fg no-underline hover:bg-raised sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-2"
+                    className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-2xl bg-raised px-3 py-3 !text-fg no-underline hover:bg-line sm:grid-cols-[auto_minmax(0,1fr)_auto]"
                   >
                     <span className="row-span-2 sm:row-span-1">
                       <ServiceIcon subscription={r.subscription} />
@@ -241,7 +277,7 @@ export function DashboardPage() {
             </ul>
           )}
           <div className="mt-3 text-right">
-            <Link to="/subscriptions" className="text-sm">View all subscriptions</Link>
+            <Link to="/subscriptions" className="text-sm !text-lime">View all subscriptions<span aria-hidden="true"> ›</span></Link>
           </div>
         </Card>
 

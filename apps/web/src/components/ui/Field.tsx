@@ -146,7 +146,7 @@ export function SegmentedField({
         {options.map((o) => (
           <label
             key={o.value}
-            className="flex min-h-9 flex-1 cursor-pointer items-center justify-center rounded-[0.55rem] px-3 text-sm font-medium text-muted has-[:checked]:bg-accent has-[:checked]:text-accent-fg has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)]"
+            className="flex min-h-9 flex-1 cursor-pointer items-center justify-center rounded-[0.55rem] px-3 text-sm font-medium text-muted has-[:checked]:bg-accent-grad has-[:checked]:text-accent-fg has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--focus)]"
           >
             <input type="radio" name={name} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} className="sr-only" />
             {o.label}

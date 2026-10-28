@@ -5,17 +5,17 @@ const section = (page: import('@playwright/test').Page, name: string | RegExp) =
   page.getByRole('heading', { name }).locator('xpath=ancestor::section[1]');
 
 /** The Estimate / Projection / Recorded label on a card (its text node is followed by a screen-reader-only explanation). */
-const tag = (loc: import('@playwright/test').Locator, name: string) => loc.locator('span[title]').filter({ hasText: new RegExp(`^${name}`) }).first();
+const tag = (loc: import('@playwright/test').Locator, name: string) => loc.locator('span.sr-only').filter({ hasText: new RegExp(`^${name}`) }).first();
 
 test.describe('estimates, projections and recorded spending stay apart', () => {
-  test('no payments: the recorded chart is empty and nothing is estimated into it', async ({ page, signUp, addSub }) => {
+  test('no payments: the recorded-payments card is hidden and nothing is estimated into it', async ({ page, signUp, addSub }) => {
     await signUp();
     await addSub({ name: 'Netflix', amountMinor: 64900, nextBillingDate: ymd(6) });
     await page.goto('/');
     await expect(section(page, 'Monthly equivalent')).toContainText('649.00');
-    await expect(tag(section(page, 'Monthly equivalent'), 'Estimate')).toBeVisible();
-    await expect(page.getByText('No payments recorded yet')).toBeVisible();
-    await expect(page.getByText(/nothing is estimated or filled in/i).first()).toBeVisible();
+    await expect(tag(section(page, 'Monthly equivalent'), 'Estimate')).toBeAttached();
+    await expect(page.getByText(/Nothing recorded yet\. Only payments you record appear here\./)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recorded payments by month' })).toHaveCount(0);
     await expect(page.getByRole('img', { name: /Recorded payments/ })).toHaveCount(0);
   });
 
@@ -30,8 +30,8 @@ test.describe('estimates, projections and recorded spending stay apart', () => {
     const monthly = section(page, 'Monthly equivalent');
     await expect(monthly).toContainText(/649\.00\s*INR/);
     await expect(monthly).toContainText(/9\.99\s*USD/);
-    await expect(tag(section(page, 'Annualized cost'), 'Projection')).toBeVisible();
-    await expect(tag(section(page, 'Recorded payments by month'), 'Recorded')).toBeVisible();
+    await expect(tag(section(page, 'Annualized cost'), 'Projection')).toBeAttached();
+    await expect(tag(section(page, 'Recorded payments by month'), 'Recorded')).toBeAttached();
     expect(await page.locator('body').innerText()).not.toMatch(/658\.99|659\.00|\b658\b/);
 
     const chart = section(page, 'Recorded payments by month');
@@ -41,10 +41,10 @@ test.describe('estimates, projections and recorded spending stay apart', () => {
 
     await page.goto('/analytics');
     const recorded = section(page, 'Recorded spending');
-    await expect(tag(recorded, 'Recorded')).toBeVisible();
+    await expect(tag(recorded, 'Recorded')).toBeAttached();
     await expect(recorded.getByText('Net spent').locator('xpath=following-sibling::dd')).toContainText(/649\.00\s*INR/);
-    await expect(tag(section(page, 'Recurring cost'), 'Estimate')).toBeVisible();
-    await expect(tag(section(page, 'Coming up'), 'Projection')).toBeVisible();
+    await expect(tag(section(page, 'Recurring cost'), 'Estimate')).toBeAttached();
+    await expect(tag(section(page, 'Coming up'), 'Projection')).toBeAttached();
     await page.getByLabel('Currency').selectOption('USD');
     await expect(recorded.getByText('Net spent').locator('xpath=following-sibling::dd')).toContainText(/9\.99\s*USD/);
     expect(await page.locator('body').innerText()).not.toMatch(/658\.99/);

@@ -112,11 +112,17 @@ describe('amount changes and their history rows are atomic', () => {
   });
   it('concurrent amount changes serialize: history forms an unbroken chain', async () => {
     await Promise.all([change(70000), change(75000), change(80000)]);
-    const rows = (await pool.query('SELECT old_amount_minor o, new_amount_minor n FROM subscription_price_history ORDER BY created_at, id')).rows as { o: number; n: number }[];
+    // Row timestamps are not a reliable order here (a transaction's now() is its START time, and concurrent transactions start in any
+    // order), so check the property itself: following the changes from the original price visits every row exactly once, each row
+    // starting where the previous one ended, and the last one ends at the current price.
+    const rows = (await pool.query('SELECT old_amount_minor o, new_amount_minor n FROM subscription_price_history')).rows as { o: number; n: number }[];
     expect(rows).toHaveLength(3);
-    expect(rows[0]!.o).toBe(64900);
-    for (let i = 1; i < rows.length; i++) expect(rows[i]!.o).toBe(rows[i - 1]!.n); // each change starts where the previous ended
-    expect(await amountNow()).toBe(rows[2]!.n);
+    const byOld = new Map(rows.map((r) => [r.o, r]));
+    expect(byOld.size).toBe(3); // no two changes start from the same price: nothing was lost to a race
+    const chain: { o: number; n: number }[] = [];
+    for (let price = 64900, next = byOld.get(price); next; price = next.n, next = byOld.get(price)) chain.push(next);
+    expect(chain).toHaveLength(3); // an unbroken chain from the original price
+    expect(await amountNow()).toBe(chain[2]!.n);
   });
   it('deleting the subscription removes its history', async () => {
     await change(70000);

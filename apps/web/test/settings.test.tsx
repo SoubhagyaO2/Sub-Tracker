@@ -37,28 +37,27 @@ describe('settings page: appearance and region', () => {
   it('shows the saved values', async () => {
     settingsServer();
     await open();
-    const c = card('Appearance and region');
-    expect(c.getByRole('radio', { name: 'Dark' })).toBeChecked();
+    const c = card('Region');
+    expect(c.queryByRole('radio', { name: 'Light' })).toBeNull(); // the app is dark only: there is no theme choice
     expect(c.getByLabelText('Preferred currency')).toHaveValue('INR');
     expect(c.getByLabelText('Time zone')).toHaveValue('Asia/Kolkata');
   });
 
-  it('saves only what changed, applies the theme at once, and does not touch subscriptions or payments', async () => {
+  it('saves only what changed and does not touch subscriptions or payments', async () => {
     const { server } = settingsServer();
     const { user } = await open();
-    const c = card('Appearance and region');
-    await user.click(c.getByRole('radio', { name: 'Light' }));
+    const c = card('Region');
+    await user.selectOptions(c.getByLabelText('Time zone'), 'Europe/London');
     await user.click(c.getByRole('button', { name: 'Save settings' }));
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
-    expect(server.last('PATCH', '/api/preferences')!.body).toEqual({ theme: 'light' });
-    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('light'));
+    expect(server.last('PATCH', '/api/preferences')!.body).toEqual({ timezone: 'Europe/London' });
     expect(writes(server).every((w) => w.path === '/api/preferences')).toBe(true);
   });
 
   it('currency change sends only the currency; the copy says nothing is converted', async () => {
     const { server } = settingsServer();
     const { user } = await open();
-    const c = card('Appearance and region');
+    const c = card('Region');
     expect(c.getByText(/nothing is converted, and different currencies are never added together/)).toBeInTheDocument();
     await user.selectOptions(c.getByLabelText('Preferred currency'), 'USD');
     await user.click(c.getByRole('button', { name: 'Save settings' }));
@@ -70,7 +69,7 @@ describe('settings page: appearance and region', () => {
   it('time-zone change sends only the zone, refetches data that depends on "today", and keeps the alias selectable', async () => {
     const { server } = settingsServer({ ...SESSION, preferences: { ...SESSION.preferences, timezone: 'Asia/Calcutta' } });
     const { user } = await open();
-    const c = card('Appearance and region');
+    const c = card('Region');
     expect(c.getByLabelText('Time zone')).toHaveValue('Asia/Calcutta');
     await user.selectOptions(c.getByLabelText('Time zone'), 'Pacific/Kiritimati');
     expect(c.getByText(/Right now it is .* there\./)).toBeInTheDocument();
@@ -82,7 +81,7 @@ describe('settings page: appearance and region', () => {
   it('saving without a change sends nothing', async () => {
     const { server } = settingsServer();
     const { user } = await open();
-    await user.click(card('Appearance and region').getByRole('button', { name: 'Save settings' }));
+    await user.click(card('Region').getByRole('button', { name: 'Save settings' }));
     expect(await screen.findByText('You haven’t changed anything yet.')).toBeInTheDocument();
     expect(writes(server)).toHaveLength(0);
   });
@@ -91,8 +90,7 @@ describe('settings page: appearance and region', () => {
     const { server } = settingsServer();
     server.on('PATCH', '/api/preferences', fail(422, 'VALIDATION_ERROR', 'Please check the highlighted fields.', [{ path: 'timezone', message: 'Choose a valid time zone, such as Asia/Kolkata.' }]));
     const { user } = await open();
-    const c = card('Appearance and region');
-    await user.click(c.getByRole('radio', { name: 'Light' }));
+    const c = card('Region');
     await user.selectOptions(c.getByLabelText('Time zone'), 'Europe/London');
     await user.click(c.getByRole('button', { name: 'Save settings' }));
     expect((await screen.findAllByText('Choose a valid time zone, such as Asia/Kolkata.')).length).toBeGreaterThan(0);
@@ -103,41 +101,21 @@ describe('settings page: appearance and region', () => {
     const { server } = settingsServer();
     server.on('PATCH', '/api/preferences', fail(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     const { user } = await open();
-    const c = card('Appearance and region');
-    await user.click(c.getByRole('radio', { name: 'Light' }));
+    const c = card('Region');
+    await user.selectOptions(c.getByLabelText('Time zone'), 'Europe/London');
     await user.click(c.getByRole('button', { name: 'Save settings' }));
     expect((await screen.findAllByText('Something went wrong.')).length).toBeGreaterThan(0);
-    server.on('PATCH', '/api/preferences', ok({ ...SESSION.preferences, theme: 'light' }));
+    server.on('PATCH', '/api/preferences', ok({ ...SESSION.preferences, timezone: 'Europe/London' }));
     await user.click(c.getByRole('button', { name: 'Save settings' }));
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
   });
 
-  it('a saved light theme is applied on load, on every route', async () => {
+  it('the app is always dark: an old saved light or system theme is ignored, on every route and after signing out', async () => {
     settingsServer({ ...SESSION, preferences: { ...SESSION.preferences, theme: 'light' } });
     const { user } = await open();
-    expect(document.documentElement.dataset.theme).toBe('light');
-    await user.click(screen.getAllByRole('link', { name: /^Calendar$/ })[0]!);
-    expect(document.documentElement.dataset.theme).toBe('light');
-  });
-
-  it('"system" follows the device setting', async () => {
-    const listeners: (() => void)[] = [];
-    let light = false;
-    vi.stubGlobal('matchMedia', (q: string) => ({
-      matches: q.includes('light') ? light : false, media: q, addEventListener: (_: string, l: () => void) => listeners.push(l), removeEventListener: () => undefined,
-    }));
-    settingsServer({ ...SESSION, preferences: { ...SESSION.preferences, theme: 'system' } });
-    await open();
     expect(document.documentElement.dataset.theme).toBe('dark');
-    light = true;
-    listeners.forEach((l) => l());
-    expect(document.documentElement.dataset.theme).toBe('light');
-  });
-
-  it('the sign-in page goes back to the default theme after signing out', async () => {
-    settingsServer({ ...SESSION, preferences: { ...SESSION.preferences, theme: 'light' } });
-    const { user } = await open();
-    expect(document.documentElement.dataset.theme).toBe('light');
+    await user.click(screen.getAllByRole('link', { name: /^Calendar$/ })[0]!);
+    expect(document.documentElement.dataset.theme).toBe('dark');
     await user.click(screen.getAllByRole('button', { name: /Sign out/ })[0]!);
     await screen.findByRole('heading', { name: 'Welcome back' });
     expect(document.documentElement.dataset.theme).toBe('dark');

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Category } from '@subcycle/shared';
 import type { CategoryShare } from '../lib/dashboard';
 import { CATEGORY_LABEL, CATEGORY_SLOT } from '../lib/labels';
@@ -56,11 +56,14 @@ export function BucketBars({ data, currency, subject, unit }: { data: BarDatum[]
         </table>
       ) : (
         <div role="img" aria-label={summary}>
-          <div className="flex h-40 items-end gap-1 border-b border-line" aria-hidden="true">
+          <div className="relative flex h-44 items-end gap-1.5 border-b border-line sm:gap-2" aria-hidden="true">
+            {[25, 50, 75].map((p) => (
+              <div key={p} className="pointer-events-none absolute inset-x-0 border-t border-dashed border-line/70" style={{ bottom: `${p}%` }} />
+            ))}
             {data.map((d) => (
-              <div key={d.key} className="flex h-full min-w-0 flex-1 flex-col justify-end" title={`${d.label}: ${moneyText(d.netMinor, currency)}`}>
+              <div key={d.key} className="relative flex h-full min-w-0 flex-1 flex-col justify-end" title={`${d.label}: ${moneyText(d.netMinor, currency)}`}>
                 <div
-                  className={d.netMinor < 0 ? 'rounded-t bg-danger' : 'rounded-t bg-accent-text'}
+                  className={d.netMinor < 0 ? 'rounded-t-xl bg-danger' : 'rounded-t-xl bg-accent-grad shadow-glow'}
                   style={{ height: d.netMinor === 0 ? 0 : `${Math.max(3, (Math.max(0, d.netMinor) / max) * 100)}%`, minHeight: d.netMinor < 0 ? 3 : undefined }}
                 />
               </div>
@@ -113,5 +116,74 @@ function Row({ slot, label, minor, percent, currency }: { slot: number; label: s
         <div className="h-full rounded-full" style={{ width: `${Math.max(2, percent)}%`, background: `var(--cat-${slot})` }} />
       </div>
     </li>
+  );
+}
+
+
+/**
+ * Ring chart of the category split (decorative: the same numbers are in the list beside it). Segments are separated by small
+ * gaps and drawn with round caps; an optional child is centred inside the ring.
+ */
+export function Donut({ shares, size = 168, children }: { shares: { slot: number; percent: number }[]; size?: number; children?: ReactNode }) {
+  const stroke = 16;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const gap = shares.length > 1 ? 5 : 0;
+  let offset = 0;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} aria-hidden="true" focusable="false" className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--raised)" strokeWidth={stroke} />
+        {shares.map((s) => {
+          const len = Math.max(0, (Math.max(0, s.percent) / 100) * c - gap);
+          const el = (
+            <circle
+              key={s.slot + ':' + offset}
+              cx={size / 2}
+              cy={size / 2}
+              r={r}
+              fill="none"
+              stroke={`var(--cat-${s.slot})`}
+              strokeWidth={stroke}
+              strokeLinecap="round"
+              strokeDasharray={`${len} ${c - len}`}
+              strokeDashoffset={-offset}
+              style={{ filter: s.slot === 1 ? 'drop-shadow(0 0 6px color-mix(in srgb, var(--cat-1) 60%, transparent))' : undefined }}
+            />
+          );
+          offset += (Math.max(0, s.percent) / 100) * c;
+          return el;
+        })}
+      </svg>
+      {children ? <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Concentric rings (outermost first), like an activity ring: each ring is one category's share of the monthly total.
+ * Decorative: the same figures are written beside it.
+ */
+export function Rings({ rings, size = 176, children }: { rings: { slot: number; percent: number }[]; size?: number; children?: ReactNode }) {
+  const stroke = 20;
+  const gap = 4;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} aria-hidden="true" focusable="false" className="-rotate-90">
+        {rings.map((ring, i) => {
+          const r = (size - stroke) / 2 - i * (stroke + gap);
+          if (r <= 0) return null;
+          const c = 2 * Math.PI * r;
+          const len = Math.min(c, (Math.max(0, ring.percent) / 100) * c);
+          return (
+            <g key={ring.slot + ':' + i}>
+              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`var(--cat-${ring.slot})`} strokeOpacity={0.2} strokeWidth={stroke} />
+              <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`var(--cat-${ring.slot})`} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len} ${c}`} />
+            </g>
+          );
+        })}
+      </svg>
+      {children ? <div className="absolute inset-0 flex flex-col items-center justify-center text-center">{children}</div> : null}
+    </div>
   );
 }

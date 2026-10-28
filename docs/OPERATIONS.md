@@ -111,3 +111,7 @@ Before relying on email reminders, configure SMTP, verify an address, and send o
 - **Start-up warnings** (`config_warning` events) are emitted in production for a missing `TRUST_PROXY`, a database URL without `sslmode`, and `debug`/`trace` logging. Unsafe values (dev credentials, http/localhost URLs, wildcard CORS) refuse to start.
 - **Health:** `/api/health` (liveness) and `/api/health/ready` (database reachable).
 - Everything an operator needs to deploy, back up and restore is in [RELEASE.md](RELEASE.md).
+
+## Pictures and storage
+
+Optional subscription pictures (at most 40 KB each, stored as `bytea` in `subscription_icon_images`) are included in `pg_dump` backups like any other data, and are removed from the live database with their subscription or account. Expect database growth of at most 40 KB per picture a user chooses to upload. The request body limit for the upload route is 41 KB; the general JSON limit stays 100 KB.

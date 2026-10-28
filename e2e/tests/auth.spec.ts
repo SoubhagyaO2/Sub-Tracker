@@ -62,6 +62,7 @@ test.describe('authentication', () => {
     const account = await signUp();
     await page.goto('/subscriptions');
     await expect(page.getByRole('heading', { name: 'Subscriptions', level: 1 })).toBeVisible();
+    await page.waitForLoadState('networkidle'); // the page's own data requests are finished, so none can race the revocation below
     expect(await sessionsOf(account.id)).toBe(1);
     await revokeSessions(account.id); // what expiry, a password change elsewhere, or an operator would do
     await page.getByRole('link', { name: 'Calendar' }).first().click();

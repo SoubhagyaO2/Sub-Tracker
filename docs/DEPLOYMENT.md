@@ -222,6 +222,10 @@ The API adds its own security headers to `/api/*` responses, so those responses 
 - SubCycle tracks only what users type. It does not connect to banks or providers, cannot see real charges and cannot cancel anything.
 - No Firefox/WebKit testing, no manual screen-reader pass, no TLS-enforced database test, no managed-provider test, no test under a real systemd or with in-flight requests during shutdown.
 
+## 7a. Outbound network access
+
+The link lookup on the add form makes HTTPS requests (port 443) from the API host to the sites users paste. Allow that egress if you want it. If your host blocks outbound traffic, the feature degrades gracefully (names derived from the address; known services still recognised locally) and nothing else is affected. It cannot reach private addresses even if the host can (see SECURITY.md). It is rate limited to 20 lookups per user per minute.
+
 ## 8. Deployment checklist (print this)
 
 - [ ] Decisions 0.1–0.5 made and written down
@@ -239,3 +243,4 @@ The API adds its own security headers to `/api/*` responses, so those responses 
 - [ ] First restore drill into a scratch database passed
 - [ ] Access restriction decided and applied (or open registration consciously accepted)
 - [ ] Email still disabled (or manual provider test passed and recorded)
+- [ ] Egress policy for the pasted-link lookup decided (allow 443 outbound, or block and accept host-derived names)
