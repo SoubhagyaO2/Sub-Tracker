@@ -10,7 +10,7 @@ import { Icon, type IconName } from './Icon';
 
 export function Card({ children, className = '', as: Tag = 'section', ...rest }: { children: ReactNode; className?: string; as?: 'section' | 'div' | 'li'; 'aria-labelledby'?: string }) {
   return (
-    <Tag className={`min-w-0 rounded-card border border-line bg-surface p-4 shadow-card sm:p-6 ${className}`} {...rest}>
+    <Tag className={`min-w-0 rounded-card bg-surface p-4 shadow-card sm:p-6 ${className}`} {...rest}>
       {children}
     </Tag>
   );
@@ -18,9 +18,9 @@ export function Card({ children, className = '', as: Tag = 'section', ...rest }:
 
 export function CardHeader({ id, title, tag, action }: { id: string; title: string; tag?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <div className="-mx-4 mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 pb-3 sm:-mx-6 sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 id={id} className="text-base">
+        <h2 id={id} className="text-lg">
           {title}
         </h2>
         {tag}
