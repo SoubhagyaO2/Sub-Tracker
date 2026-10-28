@@ -19,6 +19,7 @@
     "lint": "eslint .",
     "migrate": "npm run build -w @subcycle/shared && npm run migrate -w @subcycle/api",
     "admin:reset-link": "npm run build -w @subcycle/shared && npm run admin:reset-link -w @subcycle/api --",
+    "admin:test-email": "npm run build -w @subcycle/shared && npm run admin:test-email -w @subcycle/api --",
     "dev:api": "npm run build -w @subcycle/shared && npm run dev -w @subcycle/api",
     "test": "npm run build -w @subcycle/shared && npm test -w @subcycle/api && npm test -w @subcycle/web",
     "dev:web": "npm run build -w @subcycle/shared && npm run dev -w @subcycle/web",

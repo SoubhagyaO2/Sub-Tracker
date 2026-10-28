@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx --env-file-if-exists=../../.env src/db/migrate-cli.ts",
     "admin:reset-link": "tsx --env-file-if-exists=../../.env src/cli/resetLink.ts",
+    "admin:test-email": "tsx --env-file-if-exists=../../.env src/cli/testEmail.ts",
     "test": "vitest run"
   },
   "dependencies": {
