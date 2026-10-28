@@ -12,6 +12,15 @@ export const defaultMigrationsDir = path.resolve(
 // Arbitrary constant: serializes concurrent migrators (e.g. two app instances starting).
 const MIGRATION_LOCK_KEY = 727_001;
 
+const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex');
+const toLf = (text: string): string => text.replace(/\r\n/g, '\n');
+
+/** SHA-256 of the file with Unix line endings, so the same migration hashes the same on Windows (CRLF checkouts) and Linux. */
+const checksumOf = (sql: string): string => sha256(toLf(sql));
+
+/** Databases migrated before line endings were normalised stored the hash of the raw file, which may have been CRLF; both forms stay valid. */
+const acceptedChecksums = (sql: string): string[] => [checksumOf(sql), sha256(toLf(sql).replace(/\n/g, '\r\n'))];
+
 /**
  * Applies forward-only numbered .sql files, one transaction per file.
  * Applied files are checksummed; editing an applied migration is an error.
@@ -35,10 +44,10 @@ export async function migrate(pool: Pool, dir: string = defaultMigrationsDir): P
 
     for (const file of files) {
       const sql = await readFile(path.join(dir, file), 'utf8');
-      const checksum = createHash('sha256').update(sql).digest('hex');
+      const checksum = checksumOf(sql);
       const existing = done.get(file);
       if (existing !== undefined) {
-        if (existing !== checksum) {
+        if (!acceptedChecksums(sql).includes(existing)) {
           throw new Error(`Migration ${file} was modified after being applied (checksum mismatch)`);
         }
         continue;
