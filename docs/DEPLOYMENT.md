@@ -216,7 +216,7 @@ The API adds its own security headers to `/api/*` responses, so those responses 
 - **Password reset needs email.** Without a provider, a lost password with no session = the operator runs `admin:reset-link` (OPERATIONS.md). There is no email change.
 - **Rate limits are per process** (in memory): they reset on restart and would multiply across instances. **Run one API instance only.**
 - **Single-instance topology.** The scheduler lock prevents overlapping cycles if a second process ever starts, but that was verified only within one process; rate limits and everything else assume one instance.
-- **Real SMTP is not verified.** Email stays off until the manual test in RELEASE.md passes.
+- **Real SMTP is not verified.** Email stays off until the checklist in EMAIL.md passes (`npm run admin:test-email` first).
 - **Registration is open** unless you restrict access at the proxy.
 - **Reminders only run while the API runs;** after downtime, missed ones are recorded as missed, not sent late, and never treated as payments.
 - SubCycle tracks only what users type. It does not connect to banks or providers, cannot see real charges and cannot cancel anything.

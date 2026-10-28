@@ -4,7 +4,7 @@
 
 | Layer | Where | Runs against | Command |
 |---|---|---|---|
-| API unit + integration | `apps/api/test` | real PostgreSQL (`subcycle_test`), Supertest | `npm test -w @subcycle/api` |
+| API unit + integration | `apps/api/test` (including `password-reset.test.ts` and `test-email.test.ts`) | real PostgreSQL (`subcycle_test`), Supertest | `npm test -w @subcycle/api` |
 | Web unit/component | `apps/web/test` | jsdom + a fake API (axe-core scans included) | `npm test -w @subcycle/web` |
 | Web ↔ real API smoke | `apps/web/test/smoke.test.tsx` | jsdom UI + the real API process + `subcycle_test` | part of the web tests |
 | **Browser (Playwright)** | `e2e/` | Chromium + the **built** web app + the **built** API + PostgreSQL (`subcycle_e2e`) | `npm run test:e2e` |
