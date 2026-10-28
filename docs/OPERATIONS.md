@@ -94,3 +94,20 @@ Running more than one instance is therefore *safe for data* but the in-memory ra
 - HTML/text rendering of the reminder email in real mail clients.
 
 Before relying on email reminders, configure SMTP, verify an address, and send one reminder end to end.
+
+## Account deletion, sessions and backups (Stage 8)
+
+- **What deletion does:** one transaction removes the user and, by cascade, everything they own (see `docs/DATA_MODEL.md` §10). Pending reminders disappear with it, and a scheduler cycle run after the deletion finds nothing and logs no error (tested; a cycle that is *in the middle of* delivering when the deletion commits is not specifically tested: its status update would match no row). An email already handed to the SMTP provider before the deletion cannot be recalled.
+- **What deletion does not do:** it does not touch backups, replicas, WAL archives or log files. Whoever runs the database owns their retention: data deleted here remains in any backup taken earlier until that backup expires, and **restoring a backup resurrects deleted accounts**. If you restore, re-apply known deletions (or delete the restored accounts again). SubCycle contains no backup tooling.
+- **Logs:** deletion and password change are logged as `account_deleted` / `password_changed` with the user id only (and a session count for the latter). Passwords, hashes, tokens and the email address are never logged (tested by capturing logs).
+- **Password change revokes every session** (including the caller's, which is replaced). After a suspected compromise: change the password in the app; all other devices are signed out immediately.
+- **Rate limits** on failed password confirmations (`rateLimit.loginPerEmailMax` failures per `authWindowMs`, per user) are in process memory: per instance, reset on restart (same single-instance caveat as login limits above).
+- **No password reset by email** exists in v1: a user who forgets their password and has no session cannot recover the account. An operator would have to intervene in the database.
+
+## Process behaviour and production settings (Stage 9)
+
+- **Shutdown:** `SIGTERM`/`SIGINT` stop the listener, close idle connections, wait for in-flight requests and the running scheduler cycle, close the pool, exit 0; a 15-second watchdog forces exit. `uncaughtException` / `unhandledRejection` log the error class (never its message or data) at `fatal` and exit 1 for the supervisor to restart.
+- **Database connections:** 10 per process, 10 s connect timeout, 30 s statement timeout, idle-client errors logged (`db_pool_error`) instead of crashing.
+- **Start-up warnings** (`config_warning` events) are emitted in production for a missing `TRUST_PROXY`, a database URL without `sslmode`, and `debug`/`trace` logging. Unsafe values (dev credentials, http/localhost URLs, wildcard CORS) refuse to start.
+- **Health:** `/api/health` (liveness) and `/api/health/ready` (database reachable).
+- Everything an operator needs to deploy, back up and restore is in [RELEASE.md](RELEASE.md).

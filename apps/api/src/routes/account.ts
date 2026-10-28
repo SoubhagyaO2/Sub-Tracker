@@ -1,10 +1,14 @@
 import { Router } from 'express';
-import { verifyEmailConfirmSchema } from '@subcycle/shared';
+import { changePasswordSchema, deleteAccountSchema, updateAccountSchema, verifyEmailConfirmSchema } from '@subcycle/shared';
+import { toUserDto } from '../auth/dto.js';
+import { assertPasswordAcceptable, hashPassword, verifyPassword } from '../auth/password.js';
+import { createSession } from '../auth/sessions.js';
+import { clearSessionCookie, setSessionCookie } from '../middleware/cookies.js';
 import { generateToken, hashToken } from '../auth/tokens.js';
 import { withTransaction } from '../db/pool.js';
 import type { AppDeps } from '../deps.js';
-import { AppError, conflict } from '../errors.js';
-import { authIpLimiter } from '../middleware/rateLimit.js';
+import { AppError, conflict, validation } from '../errors.js';
+import { authIpLimiter, passwordConfirmLimiter } from '../middleware/rateLimit.js';
 import { requireAuth } from '../middleware/session.js';
 
 export function accountRouter(deps: AppDeps): Router {
@@ -83,6 +87,80 @@ export function accountRouter(deps: AppDeps): Router {
     });
     if (!ok) throw new AppError(400, 'INVALID_TOKEN', 'This verification link is invalid or has expired.');
     res.json({ data: { verified: true } });
+  });
+
+  const confirmLimit = passwordConfirmLimiter(config.rateLimit.authWindowMs, config.rateLimit.loginPerEmailMax);
+
+  async function storedHash(userId: string): Promise<string> {
+    const { rows } = await pool.query<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = $1', [userId]);
+    if (!rows[0]) throw new AppError(401, 'UNAUTHENTICATED', 'Authentication required.');
+    return rows[0].password_hash;
+  }
+
+  /** Profile details. The email address cannot be changed in v1 (it would invalidate verification and sign-in). */
+  router.patch('/', requireAuth, async (req, res) => {
+    const auth = req.auth!;
+    const { displayName } = updateAccountSchema.parse(req.body ?? {});
+    await pool.query('UPDATE users SET display_name = $2, updated_at = $3 WHERE id = $1', [auth.userId, displayName, clock.now()]);
+    res.json({ data: { user: toUserDto({ id: auth.userId, email: auth.email, displayName, emailVerifiedAt: auth.emailVerifiedAt }) } });
+  });
+
+  /**
+   * Changes the password. The caller is already authenticated, so a wrong current password is a field error (422),
+   * never a 401 (which the web app reads as "session ended") and never anything about other accounts.
+   * Session handling, decided explicitly: EVERY session of the user is deleted, including the current one, and a fresh
+   * session is issued in the same transaction, so the old cookie can never be replayed (no session fixation) and any
+   * other device must sign in again with the new password.
+   */
+  router.post('/password', requireAuth, confirmLimit, async (req, res) => {
+    const auth = req.auth!;
+    const input = changePasswordSchema.parse(req.body ?? {});
+    const oldHash = await storedHash(auth.userId);
+    if (!(await verifyPassword(oldHash, input.currentPassword))) {
+      throw validation([{ path: 'currentPassword', message: 'Your current password is incorrect.' }]);
+    }
+    if (input.newPassword === input.currentPassword) {
+      throw validation([{ path: 'newPassword', message: 'Choose a password different from your current one.' }]);
+    }
+    assertPasswordAcceptable(input.newPassword, auth.email);
+    const newHash = await hashPassword(input.newPassword);
+
+    const result = await withTransaction(pool, async (tx) => {
+      // Optimistic: only replace the hash we verified. A concurrent change wins and this request is refused.
+      const upd = await tx.query('UPDATE users SET password_hash = $2, updated_at = $3 WHERE id = $1 AND password_hash = $4', [auth.userId, newHash, clock.now(), oldHash]);
+      if (upd.rowCount !== 1) return null;
+      const del = await tx.query('DELETE FROM sessions WHERE user_id = $1', [auth.userId]);
+      const session = await createSession(tx, config, clock, auth.userId, req.get('user-agent'));
+      return { session, revoked: del.rowCount ?? 0 };
+    });
+    if (!result) throw conflict('PASSWORD_CHANGED', 'Your password was changed by another request. Please try again.');
+    setSessionCookie(res, config, result.session.token, result.session.expiresAt);
+    req.log?.info({ event: 'password_changed', userId: auth.userId, sessionsRevoked: result.revoked }, 'password changed');
+    res.json({ data: { changed: true, otherSessionsSignedOut: Math.max(0, result.revoked - 1) } });
+  });
+
+  /**
+   * Permanently deletes the account. Needs the password (re-authentication) and the account's email typed out.
+   * One DELETE on `users`: preferences, sessions, subscriptions, payments, price history, reminders and verification
+   * tokens go with it through ON DELETE CASCADE, atomically (all or nothing).
+   */
+  router.delete('/', requireAuth, confirmLimit, async (req, res) => {
+    const auth = req.auth!;
+    const input = deleteAccountSchema.parse(req.body ?? {});
+    if (!(await verifyPassword(await storedHash(auth.userId), input.password))) {
+      throw validation([{ path: 'password', message: 'Your password is incorrect.' }]);
+    }
+    if (input.confirmEmail !== auth.email.toLowerCase()) {
+      throw validation([{ path: 'confirmEmail', message: 'That doesn’t match your account email.' }]);
+    }
+    await withTransaction(pool, async (tx) => {
+      await tx.query('DELETE FROM sessions WHERE user_id = $1', [auth.userId]); // explicit; the cascade would do it too
+      const del = await tx.query('DELETE FROM users WHERE id = $1', [auth.userId]);
+      if (del.rowCount !== 1) throw new AppError(404, 'NOT_FOUND', 'We couldn’t find that.');
+    });
+    req.log?.info({ event: 'account_deleted', userId: auth.userId }, 'account deleted');
+    clearSessionCookie(res, config);
+    res.status(204).end();
   });
 
   return router;

@@ -4,22 +4,24 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "e2e"
   ],
   "engines": {
-    "node": ">=20"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d --wait",
     "build": "npm run build -w @subcycle/shared && npm run build -w @subcycle/api && npm run build -w @subcycle/web",
-    "typecheck": "npm run build -w @subcycle/shared && npm run typecheck -w @subcycle/api && npm run typecheck -w @subcycle/web",
+    "typecheck": "npm run build -w @subcycle/shared && npm run typecheck -w @subcycle/api && npm run typecheck -w @subcycle/web && npm run typecheck -w @subcycle/e2e",
     "lint": "eslint .",
     "migrate": "npm run build -w @subcycle/shared && npm run migrate -w @subcycle/api",
     "dev:api": "npm run build -w @subcycle/shared && npm run dev -w @subcycle/api",
     "test": "npm run build -w @subcycle/shared && npm test -w @subcycle/api && npm test -w @subcycle/web",
-    "dev:web": "npm run build -w @subcycle/shared && npm run dev -w @subcycle/web"
+    "dev:web": "npm run build -w @subcycle/shared && npm run dev -w @subcycle/web",
+    "test:e2e": "npm run build && npm run test -w @subcycle/e2e"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { loginSchema, registerSchema } from '@subcycle/shared';
+import { isValidTimeZone, loginSchema, registerSchema } from '@subcycle/shared';
 import { loadPreferences, toUserDto } from '../auth/dto.js';
 import { assertPasswordAcceptable, hashPassword, needsRehash, verifyAgainstDummy, verifyPassword } from '../auth/password.js';
 import { createSession, deleteSessionById } from '../auth/sessions.js';
@@ -9,15 +9,6 @@ import { AppError, conflict, unauthorized } from '../errors.js';
 import { clearSessionCookie, setSessionCookie } from '../middleware/cookies.js';
 import { authIpLimiter, loginEmailLimiter } from '../middleware/rateLimit.js';
 import { requireAuth } from '../middleware/session.js';
-
-function isValidTimeZone(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 interface LoginRow {
   id: string;

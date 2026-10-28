@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'stage-*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # jsdom (web tests) requires ^22.22.2 || ^24.15.0 || >=26; .nvmrc pins the same version for local use.
+  NODE_VERSION: 24.15.0
+  # Throwaway service containers: not real credentials.
+  PGUSER: subcycle
+  PGPASSWORD: subcycle
+
+jobs:
+  static:
+    name: Typecheck, lint, build, audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - name: Dependency audit (fails on any advisory)
+        run: npm audit
+
+  test:
+    name: Unit and integration tests (real PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: subcycle, POSTGRES_PASSWORD: subcycle, POSTGRES_DB: subcycle }
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U subcycle -d subcycle" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgres://subcycle:subcycle@localhost:5434/subcycle_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: node --version && npm --version
+      - run: npm ci
+      - name: Create the disposable test database
+        run: psql -h localhost -p 5434 -d postgres -c "CREATE DATABASE subcycle_test"
+      - name: Migrations apply to an empty database and are idempotent
+        run: |
+          npm run build -w @subcycle/shared
+          DATABASE_URL=postgres://subcycle:subcycle@localhost:5434/subcycle npm run migrate -w @subcycle/api
+          DATABASE_URL=postgres://subcycle:subcycle@localhost:5434/subcycle npm run migrate -w @subcycle/api
+      - run: npm test
+
+  e2e:
+    name: Browser tests (Playwright, real API and PostgreSQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: subcycle, POSTGRES_PASSWORD: subcycle, POSTGRES_DB: subcycle }
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U subcycle -d subcycle" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      CI: "true"
+      E2E_DATABASE_URL: postgres://subcycle:subcycle@localhost:5434/subcycle_e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test -w @subcycle/e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7

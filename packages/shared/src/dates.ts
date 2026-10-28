@@ -115,3 +115,19 @@ export function isOccurrence(anchor: DateOnly, frequency: BillingFrequency, date
   const months = (t.y - a.y) * 12 + (t.m - a.m);
   return months >= 0 && months % MONTH_STEP[frequency] === 0 && t.d === Math.min(a.d, daysInMonth(t.y, t.m));
 }
+
+/**
+ * True for an IANA zone identifier the runtime's zone database knows ("Asia/Kolkata", "America/Argentina/Buenos_Aires",
+ * "UTC"). Fixed offsets ("+05:30"), abbreviations ("EST") and POSIX-style rules ("EST5EDT") are refused: only a named
+ * region/city zone follows daylight-saving rules, and the reminder planner relies on that.
+ */
+export function isValidTimeZone(timeZone: string): boolean {
+  if (timeZone.length === 0 || timeZone.length > 64) return false;
+  if (timeZone !== 'UTC' && !/^[A-Za-z]+(?:[_-][A-Za-z]+)*(?:\/[A-Za-z0-9]+(?:[_+-][A-Za-z0-9]+)*)+$/.test(timeZone)) return false;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}

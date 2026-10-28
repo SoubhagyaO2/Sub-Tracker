@@ -60,3 +60,16 @@ describe('FakeClock', () => {
     expect(c.now().toISOString()).toBe('2031-06-01T12:00:00.000Z');
   });
 });
+
+import { assertDisposableDatabase } from './dbUrl.js';
+describe('assertDisposableDatabase (guards the destructive test setup)', () => {
+  it('accepts *_test names only', () => {
+    expect(() => assertDisposableDatabase('postgres://u:p@h:5432/subcycle_test')).not.toThrow();
+    for (const bad of ['postgres://u:p@h/subcycle', 'postgres://u:p@h/prod', 'postgres://u:p@h/test_data', 'postgres://u:p@h/subcycle_test_backup', 'postgres://u:p@h/subcycle?x=_test', 'not a url']) {
+      expect(() => assertDisposableDatabase(bad), bad).toThrow();
+    }
+  });
+  it('accepts extra suffixes when the caller allows them', () => {
+    expect(() => assertDisposableDatabase('postgres://u:p@h/subcycle_e2e', ['_test', '_e2e'])).not.toThrow();
+  });
+});

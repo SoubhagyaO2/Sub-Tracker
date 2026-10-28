@@ -6,13 +6,14 @@ import { EmptyState, ErrorState } from './components/ui/display';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { DashboardPage } from './pages/Dashboard';
+import { SettingsPage } from './pages/SettingsPage';
 import { RemindersPage } from './pages/RemindersPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { EditSubscriptionPage, NewSubscriptionPage } from './pages/SubscriptionFormPages';
 import { SubscriptionDetailPage } from './pages/SubscriptionDetail';
 import { SubscriptionListPage } from './pages/SubscriptionList';
-import { AuthProvider, useApplyTheme, useAuth } from './state/auth';
+import { AuthProvider, ThemeSync, useAuth } from './state/auth';
 import { DataProvider } from './state/data';
 import { ToastProvider, usePageTitle } from './state/ui';
 
@@ -24,7 +25,6 @@ function FullPage({ children }: { children: ReactNode }) {
 function RequireAuth() {
   const { state, retry } = useAuth();
   const location = useLocation();
-  useApplyTheme(state.status === 'authed' ? state.preferences.theme : 'dark');
 
   if (state.status === 'loading') {
     return (
@@ -100,6 +100,7 @@ export function AppRoutes() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
         <Route path="/subscriptions" element={<SubscriptionListPage />} />
         <Route path="/subscriptions/new" element={<NewSubscriptionPage />} />
         <Route path="/subscriptions/:id" element={<SubscriptionDetailPage />} />
@@ -141,6 +142,7 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <ThemeSync />
         <ToastProvider>{children}</ToastProvider>
       </AuthProvider>
     </ErrorBoundary>

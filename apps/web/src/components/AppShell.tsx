@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useAuth, useSession } from '../state/auth';
 import { useUnreadReminders } from '../state/reminders';
 import { LinkButton } from './ui/Button';
@@ -86,6 +86,14 @@ function AccountMenu() {
         <div id="account-menu" className="absolute right-0 top-full z-40 mt-2 w-64 rounded-card border border-line bg-raised p-3 shadow-pop">
           <p className="truncate text-sm font-semibold">{user.displayName}</p>
           <p className="truncate text-xs text-muted">{user.email}</p>
+          <Link
+            to="/settings"
+            onClick={() => setOpen(false)}
+            className="mt-3 flex min-h-11 w-full items-center gap-2 rounded-control px-3 text-sm font-medium !text-fg no-underline hover:bg-line"
+          >
+            <Icon name="settings" />
+            Settings
+          </Link>
           <button
             type="button"
             disabled={busy}
@@ -93,7 +101,7 @@ function AccountMenu() {
               setBusy(true);
               await logout();
             }}
-            className="mt-3 flex min-h-11 w-full items-center gap-2 rounded-control px-3 text-sm font-medium text-fg hover:bg-line disabled:opacity-60"
+            className="flex min-h-11 w-full items-center gap-2 rounded-control px-3 text-sm font-medium text-fg hover:bg-line disabled:opacity-60"
           >
             <Icon name="logout" />
             Sign out
@@ -141,6 +149,10 @@ export function AppShell() {
             <Icon name={REMINDERS.icon} />
             {REMINDERS.label}
             <UnreadBadge count={unread} />
+          </NavLink>
+          <NavLink to="/settings" className={desktopLink}>
+            <Icon name="settings" />
+            Settings
           </NavLink>
         </nav>
         <div className="mt-6 px-1">
