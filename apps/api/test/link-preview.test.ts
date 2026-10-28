@@ -141,7 +141,7 @@ describe('previewLink with a fake transport', () => {
     const { seen, transport } = recording([]);
     const r = await previewLink('https://www.netflix.com/browse', { transport, lookup: noLookup });
     expect(r).toMatchObject({ name: 'Netflix', category: 'video', websiteUrl: 'https://www.netflix.com', source: 'catalog' });
-    expect(r.icon).toBeTruthy();
+    expect(r.icon).toBe('netflix'); // the key of the bundled Netflix logo
     expect(seen).toHaveLength(0);
   });
 
@@ -212,19 +212,19 @@ describe('previewLink with a fake transport', () => {
 });
 
 describe('the built-in catalogue', () => {
-  it('has unique names, valid categories, https websites and single-emoji icons', () => {
+  it('has unique names, valid categories, https websites and well-formed logo keys', () => {
     const names = SERVICE_CATALOG.map((s) => s.name.toLowerCase());
     expect(new Set(names).size).toBe(names.length);
     for (const s of SERVICE_CATALOG) {
       expect(CATEGORIES, s.name).toContain(s.category);
       expect(new URL(s.websiteUrl).protocol, s.name).toBe('https:');
-      expect(s.icon, s.name).toMatch(/^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|‍|️)+$/u); // the rule the API applies to icons
-      expect(s.icon.length).toBeLessThanOrEqual(32);
+      if (s.logo !== null) expect(s.logo, s.name).toMatch(/^[a-z0-9-]{1,32}$/); // the rule the API applies to glyph keys
     }
     expect(SERVICE_CATALOG.length).toBeGreaterThanOrEqual(80);
+    expect(SERVICE_CATALOG.filter((s) => s.logo !== null).length).toBeGreaterThanOrEqual(50);
   });
   it('contains no prices, plans or cancellation links (nothing that could be mistaken for what a user pays)', () => {
-    for (const s of SERVICE_CATALOG) expect(Object.keys(s).sort().every((k) => ['name', 'category', 'websiteUrl', 'icon', 'aliases', 'hosts'].includes(k)), s.name).toBe(true);
+    for (const s of SERVICE_CATALOG) expect(Object.keys(s).sort().every((k) => ['name', 'category', 'websiteUrl', 'logo', 'aliases', 'hosts'].includes(k)), s.name).toBe(true);
   });
   it.each([
     ['net', 'Netflix'], ['NETFLIX', 'Netflix'], ['spot', 'Spotify'], ['prime', 'Amazon Prime Video'], ['hbo', 'Max'], ['chatgpt plus', 'ChatGPT'], ['icloud', 'iCloud+'], ['disney+ hotstar', 'JioHotstar'],

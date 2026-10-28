@@ -217,7 +217,7 @@ export async function previewLink(raw: string, deps: PreviewDeps = {}): Promise<
   let url = parsePublicUrl(raw);
 
   const known = serviceForHostname(url.hostname);
-  if (known) return { name: known.name, websiteUrl: known.websiteUrl, category: known.category, icon: known.icon, source: 'catalog' };
+  if (known) return { name: known.name, websiteUrl: known.websiteUrl, category: known.category, icon: known.logo, source: 'catalog' };
 
   let page: PageResponse | null = null;
   try {
@@ -227,7 +227,7 @@ export async function previewLink(raw: string, deps: PreviewDeps = {}): Promise<
         if (hop === MAX_REDIRECTS) break;
         url = parsePublicUrl(new URL(res.location, url).href); // every hop is validated again
         const again = serviceForHostname(url.hostname);
-        if (again) return { name: again.name, websiteUrl: again.websiteUrl, category: again.category, icon: again.icon, source: 'catalog' };
+        if (again) return { name: again.name, websiteUrl: again.websiteUrl, category: again.category, icon: again.logo, source: 'catalog' };
         continue;
       }
       if (res.status === 200 && /^text\/html\b/i.test(res.contentType ?? '')) page = res;

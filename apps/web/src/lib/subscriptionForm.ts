@@ -17,6 +17,7 @@ import {
 } from '@subcycle/shared';
 import { fieldErrorsFromIssues, type FieldErrors } from './forms';
 import { minorToInput, parseMoneyInput } from './money';
+import { BRAND_ICONS } from './brandIcons.generated';
 
 /** What the form holds: strings exactly as typed (money as decimal text, dates as YYYY-MM-DD or ''). */
 export interface SubscriptionFormValues {
@@ -45,6 +46,22 @@ export interface SubscriptionFormValues {
   priceChangeNote: string;
 }
 
+/**
+ * The Icon field holds either one emoji or the key of a built-in brand logo ("netflix"). Both are stored in the same icon
+ * object the API already had: { kind: 'emoji' } and { kind: 'glyph' }.
+ */
+export const iconFromText = (t: string): { kind: 'emoji' | 'glyph'; value: string } | null => {
+  const value = t.trim();
+  if (!value) return null;
+  return /^[a-z0-9-]{1,32}$/.test(value) ? { kind: 'glyph', value } : { kind: 'emoji', value };
+};
+export const textFromIcon = (icon: { kind: string; value: string } | null | undefined): string => icon?.value ?? '';
+/** A logo key must be one of the logos that ship with the app, otherwise nothing could be shown for it. */
+const iconProblem = (t: string): string | null => {
+  const icon = iconFromText(t);
+  return icon?.kind === 'glyph' && !(icon.value in BRAND_ICONS) ? 'Use one emoji, or the name of a built-in logo such as “netflix”.' : null;
+};
+
 export function emptyValues(currency: CurrencyCode): SubscriptionFormValues {
   return {
     name: '', category: 'other', amountMinor: '', currency, billingFrequency: 'monthly', status: 'active',
@@ -60,7 +77,7 @@ export function valuesFromSubscription(s: SubscriptionDto): SubscriptionFormValu
     billingFrequency: s.billingFrequency, status: s.status === 'trial' ? 'trial' : 'active', nextBillingDate: s.nextBillingDate,
     trialEndDate: s.trialEndDate ?? '', startDate: s.startDate, anchorDate: s.anchorDate,
     paymentMethodLabel: s.paymentMethodLabel ?? '', websiteUrl: s.websiteUrl ?? '', cancellationUrl: s.cancellationUrl ?? '',
-    notes: s.notes ?? '', usageLevel: s.usageLevel ?? '', icon: s.icon?.kind === 'emoji' ? s.icon.value : '',
+    notes: s.notes ?? '', usageLevel: s.usageLevel ?? '', icon: textFromIcon(s.icon),
     remindersEnabled: s.remindersEnabled, reminderLeadDays: s.reminderLeadDays === null ? '' : String(s.reminderLeadDays),
     recordPriceChange: true, priceChangeEffectiveOn: '', priceChangeNote: '',
   };
@@ -128,6 +145,8 @@ export function buildCreatePayload(v: SubscriptionFormValues, ctx: { today: stri
   }
   const lead = parseLead(v.reminderLeadDays);
   if (!lead.ok) errors.reminderLeadDays = lead.message;
+  const iconErr = iconProblem(v.icon);
+  if (iconErr) errors.icon = iconErr;
   if (Object.keys(errors).length) return { ok: false, errors };
 
   const payload: CreateSubscriptionInput = {
@@ -146,7 +165,7 @@ export function buildCreatePayload(v: SubscriptionFormValues, ctx: { today: stri
     ...(text(v.cancellationUrl) ? { cancellationUrl: text(v.cancellationUrl) } : {}),
     ...(text(v.notes) ? { notes: text(v.notes) } : {}),
     ...(v.usageLevel ? { usageLevel: v.usageLevel } : {}),
-    ...(text(v.icon) ? { icon: { kind: 'emoji' as const, value: text(v.icon) } } : {}),
+    ...(iconFromText(v.icon) ? { icon: iconFromText(v.icon)! } : {}),
     ...(!v.remindersEnabled ? { remindersEnabled: false } : {}),
     ...(lead.ok && lead.value !== null ? { reminderLeadDays: lead.value } : {}),
   };
@@ -200,13 +219,16 @@ export function buildUpdatePayload(v: SubscriptionFormValues, original: Subscrip
   ] as const;
   for (const [key, now, was] of nullable) if (now !== (was ?? '')) patch[key] = now || null;
   if ((v.usageLevel || null) !== original.usageLevel) patch.usageLevel = v.usageLevel || null;
-  const originalIcon = original.icon?.kind === 'emoji' ? original.icon.value : '';
-  if (text(v.icon) !== originalIcon) patch.icon = text(v.icon) ? { kind: 'emoji', value: text(v.icon) } : null;
+  if (text(v.icon) !== textFromIcon(original.icon)) patch.icon = iconFromText(v.icon);
 
   if (v.remindersEnabled !== original.remindersEnabled) patch.remindersEnabled = v.remindersEnabled;
   const lead = parseLead(v.reminderLeadDays);
   if (!lead.ok) errors.reminderLeadDays = lead.message;
   else if (lead.value !== original.reminderLeadDays) patch.reminderLeadDays = lead.value;
+  if (text(v.icon) !== textFromIcon(original.icon)) {
+    const iconErr = iconProblem(v.icon);
+    if (iconErr) errors.icon = iconErr;
+  }
 
   // Price-change bookkeeping only applies when the amount really changes within the same currency.
   if (amountChanged && !currencyChanged) {

@@ -40,7 +40,7 @@ The session itself is only the httpOnly cookie; no token appears in any body. `P
   "usageLevel": null,                  // often | sometimes | rarely: only ever user-entered
   "reminderLeadDays": null,            // 0-60, null = inherit preference
   "remindersEnabled": true,
-  "icon": null,                        // { kind: "glyph"|"emoji", value } | null
+  "icon": null,                        // { kind: "glyph"|"emoji", value } | null; glyph value = a bundled brand-logo key such as "netflix"
   "allowedActions": ["pause","cancel","archive"],   // what the state machine permits right now
   "createdAt": "…Z", "updatedAt": "…Z"
 }
@@ -150,7 +150,7 @@ Billing dates are computed from the **anchor** (`addMonths(anchor, n)` etc.), ne
 ### `POST /api/link-preview` → `200 { data: LinkPreview }` · `422` · `429`
 Body `{ url }` (1-2048 characters, strict). Needs a session and the CSRF header; limited to **20 per user per minute** (`rateLimit.linkPreviewMax`).
 `LinkPreview = { name, websiteUrl, category | null, icon | null, source: "catalog" | "page" | "address" }`.
-- `catalog`: the host belongs to a service in the built-in list (`packages/shared/src/services.ts`): name, category, website and an emoji come back and **no request is made**.
+- `catalog`: the host belongs to a service in the built-in list (`packages/shared/src/services.ts`): name, category, website and, where a logo is bundled, its logo key (`icon`, e.g. `netflix`) come back and **no request is made**.
 - `page`: the server fetched the page and used its own site name / title (`og:site_name`, `application-name`, `<title>`, `og:title`), first segment only, plain text, at most 80 characters. `category` and `icon` are `null`: nothing is guessed.
 - `address`: the page could not be read (timeout, DNS or TLS failure, non-200, not HTML, no usable title); the name is derived from the host name and the UI asks the user to check it.
 - `422` (field `url`, one fixed message) for anything that is not a plain public https web address, **without saying why**: http is upgraded to https; credentials in the URL, ports other than 443, IP-address hosts, single-label / internal-looking names (`.local`, `.internal`, `.lan`, `.corp`, …), non-web schemes and names that **resolve** to a non-public address are all refused.

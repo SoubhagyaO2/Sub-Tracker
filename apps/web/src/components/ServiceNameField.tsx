@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react';
 import { searchServices, type ServiceTemplate } from '@subcycle/shared';
 import { CATEGORY_LABEL } from '../lib/labels';
+import { ServiceIcon } from './ui/display';
 import { TextField } from './ui/Field';
 
 interface Props {
@@ -92,7 +93,7 @@ export function ServiceNameField({ value, onChange, onPick, error }: Props) {
               onMouseMove={() => setActive(i)}
               className={`flex min-h-11 cursor-pointer items-center gap-3 px-3 text-sm ${i === active ? 'bg-accent-soft text-accent-text' : 'text-fg'}`}
             >
-              <span aria-hidden="true" className="w-6 text-center text-lg">{s.icon}</span>
+              <ServiceIcon subscription={{ name: s.name, category: s.category, icon: s.logo ? { kind: 'glyph', value: s.logo } : null }} />
               <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
               <span className={`shrink-0 text-xs ${i === active ? "text-accent-text" : "text-muted"}`}>{CATEGORY_LABEL[s.category]}</span>
             </li>
