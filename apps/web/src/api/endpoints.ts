@@ -9,6 +9,7 @@ import type {
   CalendarResponseMeta,
   CreatePaymentInput,
   CreateSubscriptionInput,
+  LinkPreview,
   LoginInput,
   PaymentDto,
   PreferencesDto,
@@ -72,6 +73,11 @@ export const authApi = {
   login: (input: LoginInput) => request<SessionPayload>('POST', '/api/auth/login', { body: input, skipAuthRedirect: true }).then((r) => r.data),
   register: (input: RegisterInput) => request<SessionPayload>('POST', '/api/auth/register', { body: input, skipAuthRedirect: true }).then((r) => r.data),
   logout: () => request<void>('POST', '/api/auth/logout', { skipAuthRedirect: true }).then(() => undefined),
+};
+
+export const linkPreviewApi = {
+  /** 422 (field `url`) when the address is not a public https web address. */
+  fetch: (url: string, signal?: AbortSignal) => request<LinkPreview>('POST', '/api/link-preview', { body: { url }, signal }).then((r) => r.data),
 };
 
 export const subscriptionsApi = {

@@ -1,9 +1,10 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { CATEGORIES, CURRENCY_CODES, FREQUENCIES, USAGE_LEVELS, isSupportedCurrency, type CurrencyCode, type SubscriptionDto } from '@subcycle/shared';
-import { subscriptionsApi } from '../api/endpoints';
+import { CATEGORIES, CURRENCY_CODES, FREQUENCIES, USAGE_LEVELS, isSupportedCurrency, serviceForHostname, type Category, type CurrencyCode, type LinkPreview, type ServiceTemplate, type SubscriptionDto } from '@subcycle/shared';
+import { linkPreviewApi, subscriptionsApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { Button } from '../components/ui/Button';
+import { ServiceNameField } from '../components/ServiceNameField';
 import { Card, ErrorState, LoadingRegion, Skeleton, EmptyState } from '../components/ui/display';
 import { CheckboxField, DateField, ErrorSummary, MoneyField, SegmentedField, SelectField, TextArea, TextField, focusFirstError } from '../components/ui/Field';
 import { CATEGORY_LABEL, FREQUENCY_LABEL, USAGE_LABEL } from '../lib/labels';
@@ -45,6 +46,78 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
   const [submitting, setSubmitting] = useState(false);
   const inFlight = useRef(false);
   const set = <K extends keyof SubscriptionFormValues>(key: K, value: SubscriptionFormValues[K]) => setV((cur) => ({ ...cur, [key]: value }));
+
+  // ── quick start: a suggestion from the built-in list, or a pasted link ──
+  const [link, setLink] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [quickNote, setQuickNote] = useState<string | null>(null);
+  const linkInFlight = useRef(false);
+
+  // The latest values, so a lookup that finishes after the user kept typing still only fills what is STILL empty.
+  const latest = useRef(v);
+  latest.current = v;
+
+  /** Fills only what the user has not already set: a typed website, icon or category is never overwritten. Returns what was filled. */
+  function applySuggestion(s: { name: string; websiteUrl: string; category: Category | null; icon: string | null }, replaceName: boolean): string[] {
+    const cur = latest.current;
+    const patch: Partial<SubscriptionFormValues> = {};
+    const filled: string[] = [];
+    if ((replaceName || cur.name.trim() === '') && cur.name !== s.name) { patch.name = s.name; filled.push('name'); }
+    if (s.category && cur.category === 'other') { patch.category = s.category; filled.push('category'); }
+    if (s.websiteUrl && cur.websiteUrl.trim() === '') { patch.websiteUrl = s.websiteUrl; filled.push('website'); }
+    if (s.icon && cur.icon.trim() === '') { patch.icon = s.icon; filled.push('icon'); }
+    setV((c) => ({ ...c, ...patch }));
+    return filled;
+  }
+  const sentence = (parts: string[]) => (parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? 'nothing new'));
+
+  function pickService(s: ServiceTemplate) {
+    applySuggestion(s, true);
+    setQuickNote(`Filled in the details for ${s.name}. Now add the price and your next billing date: SubCycle never fills those in.`);
+  }
+
+  async function fillFromLink() {
+    if (linkInFlight.current) return;
+    const text = link.trim();
+    setLinkError(null);
+    setQuickNote(null);
+    if (!text) {
+      setLinkError('Paste a web address first.');
+      return;
+    }
+    // A well-known service is recognised from the address alone: no request is made.
+    let host = '';
+    try {
+      host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`).hostname;
+    } catch {
+      /* the server explains what is wrong */
+    }
+    const known = host ? serviceForHostname(host) : null;
+    if (known) {
+      const filled = applySuggestion({ name: known.name, websiteUrl: known.websiteUrl, category: known.category, icon: known.icon }, false);
+      setQuickNote(`Recognised ${known.name}. Filled in ${sentence(filled)}. Now add the price and your next billing date.`);
+      return;
+    }
+    linkInFlight.current = true;
+    setLinkBusy(true);
+    try {
+      const p: LinkPreview = await linkPreviewApi.fetch(text);
+      const filled = applySuggestion(p, false);
+      setQuickNote(
+        p.source === 'page'
+          ? `Read “${p.name}” from the page. Filled in ${sentence(filled)}: check the name. Now add the price and your next billing date.`
+          : p.source === 'catalog'
+            ? `Recognised ${p.name}. Filled in ${sentence(filled)}. Now add the price and your next billing date.`
+            : `We couldn’t read that page, so the name comes from the web address: check it. Filled in ${sentence(filled)}. Now add the price and your next billing date.`,
+      );
+    } catch (err) {
+      setLinkError(err instanceof ApiError && err.status === 422 ? (err.details[0]?.message ?? err.message) : err instanceof ApiError && err.status === 429 ? 'Too many lookups. Please wait a minute, or type the details in.' : 'We couldn’t look that up. You can type the details in instead.');
+    } finally {
+      linkInFlight.current = false;
+      setLinkBusy(false);
+    }
+  }
 
   const trial = mode === 'create' ? v.status === 'trial' : original?.status === 'trial';
   const amountChanged = mode === 'edit' && original !== undefined && v.amountMinor.trim() !== '' && v.currency === original.currency && v.amountMinor !== initial.amountMinor;
@@ -95,9 +168,45 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
     <form onSubmit={onSubmit} noValidate className="space-y-6">
       <ErrorSummary errors={errors} formError={formError} />
 
+      {mode === 'create' ? (
+        <Card aria-labelledby="quick-h" className="space-y-3">
+          <h2 id="quick-h" className="text-base">Save some typing</h2>
+          <p className="text-sm text-muted">Start typing a service name below to pick it from a list, or paste its website link and we’ll suggest the name and website. We never guess prices or dates: you enter those.</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <TextField
+                name="prefillUrl"
+                label="Paste a website link"
+                optional
+                type="text"
+                inputMode="url"
+                placeholder="netflix.com"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault(); // Enter here fills from the link; it must not submit the whole form
+                    void fillFromLink();
+                  }
+                }}
+                error={linkError ?? undefined}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            <Button onClick={() => void fillFromLink()} loading={linkBusy}>Fill from link</Button>
+          </div>
+          <p role="status" className="text-sm text-accent-text empty:hidden">{quickNote}</p>
+        </Card>
+      ) : null}
+
       <Card aria-labelledby="basics-h" className="space-y-4">
         <h2 id="basics-h" className="text-base">Basics</h2>
-        <TextField name="name" label="Service name" value={v.name} onChange={(e) => set('name', e.target.value)} error={errors.name} maxLength={80} autoComplete="off" required />
+        {mode === 'create' ? (
+          <ServiceNameField value={v.name} onChange={(t) => set('name', t)} onPick={pickService} error={errors.name} />
+        ) : (
+          <TextField name="name" label="Service name" value={v.name} onChange={(e) => set('name', e.target.value)} error={errors.name} maxLength={80} autoComplete="off" required />
+        )}
         <SelectField name="category" label="Category" value={v.category} onChange={(e) => set('category', e.target.value as SubscriptionFormValues['category'])} options={CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABEL[c] }))} error={errors.category} />
         <div className="grid gap-4 sm:grid-cols-[1fr_9rem]">
           <MoneyField

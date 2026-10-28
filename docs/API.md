@@ -146,6 +146,17 @@ Billing dates are computed from the **anchor** (`addMonths(anchor, n)` etc.), ne
 ### `GET /api/subscriptions/:id/upcoming?count=6` → `200 { data: [{ date, amountMinor, currency }], meta: { kind: "projection", note } }`
 `count` 1–24 (default 6). A **projection** at the current price, not a record of charges. Active: from the upcoming date; trial: only while its end date hasn't passed; paused/cancelled/archived: `[]`. Read-only.
 
+## Link preview (quick start)
+### `POST /api/link-preview` → `200 { data: LinkPreview }` · `422` · `429`
+Body `{ url }` (1-2048 characters, strict). Needs a session and the CSRF header; limited to **20 per user per minute** (`rateLimit.linkPreviewMax`).
+`LinkPreview = { name, websiteUrl, category | null, icon | null, source: "catalog" | "page" | "address" }`.
+- `catalog`: the host belongs to a service in the built-in list (`packages/shared/src/services.ts`): name, category, website and an emoji come back and **no request is made**.
+- `page`: the server fetched the page and used its own site name / title (`og:site_name`, `application-name`, `<title>`, `og:title`), first segment only, plain text, at most 80 characters. `category` and `icon` are `null`: nothing is guessed.
+- `address`: the page could not be read (timeout, DNS or TLS failure, non-200, not HTML, no usable title); the name is derived from the host name and the UI asks the user to check it.
+- `422` (field `url`, one fixed message) for anything that is not a plain public https web address, **without saying why**: http is upgraded to https; credentials in the URL, ports other than 443, IP-address hosts, single-label / internal-looking names (`.local`, `.internal`, `.lan`, `.corp`, …), non-web schemes and names that **resolve** to a non-public address are all refused.
+- The response never contains prices, plans, billing dates or cancellation links. The address is never stored or logged.
+See SECURITY.md for the request-forgery protections.
+
 ## Calendar (Stage 7)
 ### `GET /api/calendar/renewals?from=YYYY-MM-DD&to=YYYY-MM-DD` → `200 { data: Occurrence[], meta }`
 Read-only (never writes), scoped to the session user. Both ends inclusive. Defaults: `from` = the owner's today, `to` = `from` + 29 days. `from` earlier than today is **raised to today** (SubCycle projects forward only; `meta.from` says what was evaluated). A range longer than **366 days** is `422`. At most **1000** occurrences are returned (earliest first); `meta.truncated` is true when more existed and `meta.total` is the full count. Totals include every occurrence, not just the returned ones.

@@ -47,6 +47,7 @@ export interface Overrides {
   scheduler?: Partial<Config['scheduler']>;
   logger?: Logger;
   mailer?: Mailer;
+  linkPreview?: import('../src/services/linkPreview.js').PreviewDeps;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -87,7 +88,7 @@ export function createCtx(o: Overrides = {}): TestCtx {
   const clock = new FakeClock(T0);
   const mailer = o.mailer ?? new DisabledMailer();
   const logger = o.logger ?? createLogger({ logLevel: 'silent' });
-  return { app: createApp({ config, pool, clock, mailer, logger }), pool, clock, mailer, config, logger, env: { pool, clock, mailer, config, logger } };
+  return { app: createApp({ config, pool, clock, mailer, logger, linkPreview: o.linkPreview }), pool, clock, mailer, config, logger, env: { pool, clock, mailer, config, logger } };
 }
 
 export async function resetDb(pool: Pool): Promise<void> {
