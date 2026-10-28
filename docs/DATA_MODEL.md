@@ -51,7 +51,7 @@ CREATE UNIQUE INDEX users_email_lower_uq ON users (lower(email));
 CREATE TABLE user_preferences (
   user_id                 uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   currency                char(3)  NOT NULL DEFAULT 'INR' CHECK (currency ~ '^[A-Z]{3}$'),
-  theme                   text     NOT NULL DEFAULT 'dark' CHECK (theme IN ('dark','light','system')),
+  theme                   text     NOT NULL DEFAULT 'dark' CHECK (theme IN ('dark','light','system')), -- legacy: stored but ignored by the web app (dark only)
   timezone                text     NOT NULL DEFAULT 'Asia/Kolkata',   -- IANA; validated in app against Intl
   reminder_lead_days      smallint NOT NULL DEFAULT 3 CHECK (reminder_lead_days BETWEEN 0 AND 60),
   reminder_hour           smallint NOT NULL DEFAULT 9 CHECK (reminder_hour BETWEEN 0 AND 23),

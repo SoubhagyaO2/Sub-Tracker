@@ -183,7 +183,7 @@ Free-text label ≤ 40 chars ("HDFC card ••12"). The API rejects values that
 | `/subscriptions/:id` | Header (icon, name, status, category), price & frequency, next billing, payments, price history, notes, cancellation link, actions (edit, pause/resume, record cancellation, archive/restore, delete) |
 | `/calendar` | Month grid + 7/30/90-day timeline toggle; per-day renewals; totals for the window |
 | `/analytics` | Monthly equivalent, annualized, recorded last-12-months, by category, monthly history, most expensive, upcoming totals, price changes, what-if savings |
-| `/settings` | Profile, currency, theme, timezone, reminder preferences, email-verification status, export CSV, change password, delete account |
+| `/settings` | Profile, currency, timezone, reminder preferences, email-verification status, export CSV, change password, delete account |
 | Reminder tray (header) | Unread in-app reminders; delivery state in settings |
 
 Navigation: bottom bar < 1024px (Home, Subscriptions, Calendar, Analytics, Profile); left sidebar ≥ 1024px.
@@ -292,4 +292,4 @@ Items marked *(addition)* extend the endpoint list in the brief to support state
 1. **FX:** v1 shows per-currency totals, no conversion. OK?
 2. **Email verification** gating email reminders (§4.7) — accepted as proposed?
 3. **No password reset in v1** (§2) — acceptable?
-4. **Icons:** bundled brand logos, emoji and letter tiles only (no URL/uploaded logos) in v1 (§4.11) — acceptable?
+4. **Icons:** bundled brand logos, emoji and letter tiles only (no URL/uploaded logos) in v1 (§4.11) — acceptable? *(Answered: yes for URLs; an optional uploaded picture was added after Stage 10, §4.11.)*

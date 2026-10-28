@@ -8,14 +8,14 @@ const section = (page: import('@playwright/test').Page, name: string | RegExp) =
 const tag = (loc: import('@playwright/test').Locator, name: string) => loc.locator('span.sr-only').filter({ hasText: new RegExp(`^${name}`) }).first();
 
 test.describe('estimates, projections and recorded spending stay apart', () => {
-  test('no payments: the recorded chart is empty and nothing is estimated into it', async ({ page, signUp, addSub }) => {
+  test('no payments: the recorded-payments card is hidden and nothing is estimated into it', async ({ page, signUp, addSub }) => {
     await signUp();
     await addSub({ name: 'Netflix', amountMinor: 64900, nextBillingDate: ymd(6) });
     await page.goto('/');
     await expect(section(page, 'Monthly equivalent')).toContainText('649.00');
     await expect(tag(section(page, 'Monthly equivalent'), 'Estimate')).toBeAttached();
-    await expect(page.getByText('No payments recorded yet')).toBeVisible();
-    await expect(page.getByText(/nothing is estimated or filled in/i).first()).toBeVisible();
+    await expect(page.getByText(/Nothing recorded yet\. Only payments you record appear here\./)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recorded payments by month' })).toHaveCount(0);
     await expect(page.getByRole('img', { name: /Recorded payments/ })).toHaveCount(0);
   });
 

@@ -91,11 +91,12 @@ describe('estimates, projections and recorded payments are kept apart and labell
     expect(screen.getByText(/Not what you paid/)).toBeInTheDocument();
   });
 
-  it('with active subscriptions but NO payments, the recorded chart is empty and says nothing is estimated', async () => {
+  it('with active subscriptions but NO payments, the recorded-payments card is hidden rather than shown empty', async () => {
     serverWith(subs);
     renderApp('/');
-    expect(await screen.findByText('No payments recorded yet')).toBeInTheDocument();
-    expect(screen.getByText(/nothing is estimated or filled in/i)).toBeInTheDocument();
+    await screen.findByText(/Nothing recorded yet\. Only payments you record appear here\./);
+    expect(screen.queryByRole('heading', { name: 'Recorded payments by month' })).not.toBeInTheDocument();
+    expect(screen.queryByText('No payments recorded yet')).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /Recorded payments/ })).not.toBeInTheDocument();
     expect(screen.getByText(/Nothing recorded yet\. Only payments you record appear here\./)).toBeInTheDocument();
   });
