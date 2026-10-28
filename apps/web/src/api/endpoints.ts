@@ -1,5 +1,9 @@
 import type {
   AnalyticsBucket,
+  ChangePasswordInput,
+  DeleteAccountInput,
+  UpdateAccountInput,
+  UserDto,
   AnalyticsResponse,
   CalendarOccurrence,
   CalendarResponseMeta,
@@ -12,7 +16,7 @@ import type {
   ReminderChannel,
   ReminderDto,
   ReminderStatus,
-  UpdateReminderPreferencesInput,
+  UpdatePreferencesInput,
   RegisterInput,
   SessionPayload,
   StatusActionInput,
@@ -148,10 +152,15 @@ export const remindersApi = {
 
 export const preferencesApi = {
   get: (signal?: AbortSignal) => request<PreferencesDto>('GET', '/api/preferences', { signal }).then((r) => r.data),
-  update: (patch: UpdateReminderPreferencesInput) => request<PreferencesDto>('PATCH', '/api/preferences', { body: patch }).then((r) => r.data),
+  update: (patch: UpdatePreferencesInput) => request<PreferencesDto>('PATCH', '/api/preferences', { body: patch }).then((r) => r.data),
 };
 
 export const accountApi = {
+  updateProfile: (input: UpdateAccountInput) => request<{ user: UserDto }>('PATCH', '/api/account', { body: input }).then((r) => r.data.user),
+  /** 422 with a `currentPassword` / `newPassword` field error; 429 after repeated wrong passwords. Signs out every other device. */
+  changePassword: (input: ChangePasswordInput) => request<{ changed: boolean; otherSessionsSignedOut: number }>('POST', '/api/account/password', { body: input }).then((r) => r.data),
+  /** 204. Permanently deletes the account and all its data. */
+  deleteAccount: (input: DeleteAccountInput) => request<void>('DELETE', '/api/account', { body: input }).then(() => undefined),
   /** 503 when the server has no email provider; 429 within the resend cooldown; 409 if already verified. */
   sendVerification: () => request<{ sent: boolean }>('POST', '/api/account/email-verification').then((r) => r.data),
   /** The emailed token is the credential, so this works without a session. */

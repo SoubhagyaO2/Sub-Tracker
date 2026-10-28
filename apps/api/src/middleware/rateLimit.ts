@@ -41,3 +41,10 @@ export const loginEmailLimiter = (windowMs: number, limit: number) =>
 
 /** General per-IP API limit. */
 export const apiLimiter = (windowMs: number, limit: number) => limiter({ windowMs, limit });
+
+/**
+ * Limits FAILED password confirmations (password change / account deletion) per signed-in user, so a stolen session
+ * cannot be used to guess the password. Successful requests are not counted.
+ */
+export const passwordConfirmLimiter = (windowMs: number, limit: number) =>
+  limiter({ windowMs, limit, skipSuccessfulRequests: true, key: (req) => 'user:' + (req.auth?.userId ?? ipKeyGenerator(req.ip ?? 'unknown')) });

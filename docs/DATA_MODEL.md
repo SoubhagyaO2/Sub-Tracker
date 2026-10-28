@@ -293,3 +293,16 @@ skipped(email_*) --now deliverable---> pending
 `sent`, `failed` and other `skipped` rows are terminal. Reads never change reminders.
 
 **Locks**: scheduler cycle = session advisory lock key `727002` (`pg_try_advisory_lock`, dedicated connection, released if the process dies); per-user reconcile = transaction advisory lock; delivery claim = row locks (`SKIP LOCKED`) plus the lease column. No new tables.
+
+## 10. Stage 8: preferences, password change, deletion (no new migration)
+
+Stage 8 needed no schema change: `user_preferences` already holds `currency` (CHECK `^[A-Z]{3}$`), `timezone` and `theme` (CHECK dark/light/system). Time zones and currencies are validated in the application (the shared Zod schema), because the valid zone list belongs to the runtime's tz database, not to a CHECK constraint.
+
+| Operation | Statements (single transaction) |
+|---|---|
+| Change password | verify the current hash (outside the transaction: Argon2 is slow) → `UPDATE users SET password_hash = new WHERE id AND password_hash = <verified hash>` (optimistic; 0 rows = a concurrent change won, `409`) → `DELETE FROM sessions WHERE user_id` → insert the replacement session |
+| Delete account | verify password and typed email → `DELETE FROM sessions WHERE user_id` → `DELETE FROM users WHERE id` (must affect exactly 1 row) |
+
+**Cascade map for `DELETE FROM users`** (all `ON DELETE CASCADE`, verified by a test that fills every table and counts rows afterwards): `user_preferences`, `sessions`, `email_verification_tokens`, `subscriptions` and, through them, `payments`, `subscription_price_history` and `reminders` (composite `(subscription_id, user_id)` foreign keys, so a child can never reference another user's subscription). A failure in any dependent delete aborts the whole statement: nothing is removed (tested with a trigger that makes the `payments` delete fail).
+
+Changing `currency` or `timezone` updates one `user_preferences` row and nothing else: no subscription, payment, price-history or reminder row is rewritten by the request itself. Reminders are re-planned by the existing reconcile (see §9).

@@ -15,8 +15,18 @@ pg.types.setTypeParser(20, (v) => {
 export type Pool = pg.Pool;
 export type Queryable = Pick<pg.Pool, 'query'>;
 
-export function createPool(connectionString: string): Pool {
-  return new pg.Pool({ connectionString, max: 10 });
+export function createPool(connectionString: string, onError?: (err: Error) => void, opts: { statementTimeoutMs?: number } = {}): Pool {
+  const pool = new pg.Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 10_000, // fail a request instead of queueing forever when the database is unreachable
+    idleTimeoutMillis: 30_000,
+    statement_timeout: opts.statementTimeoutMs ?? 30_000, // no single statement may hold a connection (and its locks) for more than 30 s (0 = none; used only by the migration runner)
+    application_name: 'subcycle-api',
+  });
+  // An idle client that loses its connection emits 'error' on the pool; without a listener Node would crash the process.
+  pool.on('error', (err) => onError?.(err));
+  return pool;
 }
 
 /** Runs fn inside a transaction; commits on success, rolls back on any error. */

@@ -51,15 +51,19 @@ export interface Overrides {
 }
 
 export function testConfig(o: Overrides = {}): Config {
+  // Production configuration rejects the development database credentials, so a production-flavoured test config is validated
+  // against a placeholder URL; the tests reach the real (disposable) database through the pool they create, not through this field.
+  const production = o.env?.NODE_ENV === 'production';
   const base = loadConfig({
     NODE_ENV: 'test',
-    DATABASE_URL: TEST_DB_URL,
+    DATABASE_URL: production ? 'postgres://app_user:placeholder-pw@db.invalid:5432/subcycle?sslmode=require' : TEST_DB_URL,
     CORS_ORIGINS: ORIGIN,
     LOG_LEVEL: 'silent',
     ...o.env,
   });
   return {
     ...base,
+    databaseUrl: TEST_DB_URL,
     // Generous by default so unrelated tests never trip limits; limit tests override explicitly.
     rateLimit: { ...base.rateLimit, authMax: 1000, loginPerEmailMax: 1000, apiMax: 100_000, ...o.rateLimit },
     scheduler: { ...base.scheduler, ...o.scheduler },
@@ -110,14 +114,14 @@ export const uniqueEmail = (prefix = 'user') => `${prefix}${++counter}@example.c
 export async function registerUser(
   app: Express,
   overrides: Record<string, unknown> = {},
+  origin?: string,
 ): Promise<{ res: request.Response; cookie: string; email: string }> {
   const email = (overrides.email as string | undefined) ?? uniqueEmail();
-  const res = await request(app)
-    .post('/api/auth/register')
-    .set(CSRF)
-    .send({ email, password: PASSWORD, displayName: 'Test User', ...overrides });
+  let req = request(app).post('/api/auth/register').set(CSRF);
+  if (origin) req = req.set('Origin', origin);
+  const res = await req.send({ email, password: PASSWORD, displayName: 'Test User', ...overrides });
   if (res.status !== 201) throw new Error(`register failed: ${res.status} ${JSON.stringify(res.body)}`);
-  return { res, cookie: sessionCookie(res)!, email };
+  return { res, cookie: (sessionCookie(res) ?? sessionCookie(res, '__Host-sc_sid'))!, email };
 }
 
 export const me = (app: Express, cookie?: string) => {
@@ -141,7 +145,7 @@ export function client(app: Express, cookie?: string) {
     get: (url: string) => call('get', url),
     post: (url: string, body?: unknown) => call('post', url, body),
     patch: (url: string, body?: unknown) => call('patch', url, body),
-    del: (url: string) => call('delete', url),
+    del: (url: string, body?: unknown) => call('delete', url, body),
   };
 }
 

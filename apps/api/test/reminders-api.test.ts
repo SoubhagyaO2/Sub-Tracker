@@ -194,7 +194,7 @@ describe('preferences (reminder settings)', () => {
   it.each<[Record<string, unknown>, string]>([
     [{}, 'empty'], [{ reminderLeadDays: 61 }, 'lead too big'], [{ reminderLeadDays: -1 }, 'negative lead'], [{ reminderLeadDays: 2.5 }, 'fractional lead'],
     [{ reminderHour: 24 }, 'hour 24'], [{ reminderHour: '9' }, 'string hour'], [{ inAppReminders: 'yes' }, 'string boolean'],
-    [{ theme: 'light' }, 'theme (Stage 8)'], [{ timezone: 'UTC' }, 'timezone (Stage 8)'], [{ currency: 'USD' }, 'currency (Stage 8)'], [{ userId: 'x' }, 'userId'], [{ id: 'x' }, 'id'],
+    [{ theme: 'blue' }, 'unknown theme'], [{ timezone: 'EST' }, 'abbreviation'], [{ currency: 'XXX' }, 'unsupported currency'], [{ userId: 'x' }, 'userId'], [{ id: 'x' }, 'id'],
   ])('rejects %j (%s)', async (body) => {
     const res = await api.patch('/api/preferences', body);
     expect(res.status).toBe(422);

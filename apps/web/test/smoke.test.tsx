@@ -15,6 +15,8 @@ import { renderApp } from './helpers';
  */
 const API_DIR = path.resolve(process.cwd(), '../api');
 const DB_URL = process.env.TEST_DATABASE_URL ?? 'postgres://subcycle:subcycle@localhost:5434/subcycle_test';
+// This file deletes users and revokes sessions: only ever against a disposable database.
+if (!/_test$/.test(decodeURIComponent(new URL(DB_URL).pathname.slice(1)))) throw new Error('smoke test refuses to run: the database name must end with "_test"');
 const realFetch = globalThis.fetch;
 let server: ChildProcess;
 let base = '';
@@ -222,4 +224,68 @@ describe('real API + database: register to payment', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Your session has ended. Please sign in again.');
     expect(document.body).not.toHaveTextContent(/UNAUTHENTICATED|Authentication required/);
   }, 60_000);
+});
+
+describe('real API + database: account settings', () => {
+  it('changes preferences and password (old password stops working), then deletes the account for good', async () => {
+    const email = `smoke-settings-${Date.now()}@example.com`;
+    const newPassword = 'Correct-Horse-9-battery';
+    jar.clear(); // a fresh browser: the previous test left its session cookie behind
+    const { user } = renderApp('/register');
+    await user.type(await screen.findByLabelText('Name'), 'Settings Tester');
+    await user.type(screen.getByLabelText('Email'), email);
+    await user.type(screen.getByLabelText('Password'), PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    await screen.findByText('Nothing tracked yet', {}, { timeout: 15000 });
+
+    // preferences: persisted by the server, applied to the document
+    await user.click(screen.getAllByRole('button', { name: /Account menu/ })[0]!);
+    await user.click(screen.getAllByRole('link', { name: 'Settings' }).find((l) => l.closest('#account-menu'))!);
+    const prefs = await section('Appearance and region');
+    await user.click(prefs.getByRole('radio', { name: 'Light' }));
+    await user.selectOptions(prefs.getByLabelText('Preferred currency'), 'USD');
+    await user.selectOptions(prefs.getByLabelText('Time zone'), 'Pacific/Auckland');
+    await user.click(prefs.getByRole('button', { name: 'Save settings' }));
+    expect(await screen.findByText('Settings saved.', {}, { timeout: 15000 })).toBeInTheDocument();
+    expect(document.documentElement.dataset.theme).toBe('light');
+    const pool = new pg.Pool({ connectionString: DB_URL, max: 1 });
+    const saved = await pool.query("SELECT theme, currency, timezone FROM user_preferences WHERE user_id = (SELECT id FROM users WHERE email = $1)", [email]);
+    expect(saved.rows[0]).toEqual({ theme: 'light', currency: 'USD', timezone: 'Pacific/Auckland' });
+
+    // password: wrong current is refused in place; the right one succeeds and the OLD password no longer signs in
+    const pw = await section('Change password');
+    await user.type(pw.getByLabelText('Current password'), 'not-my-password-1');
+    await user.type(pw.getByLabelText('New password'), newPassword);
+    await user.type(pw.getByLabelText('Repeat the new password'), newPassword);
+    await user.click(pw.getByRole('button', { name: 'Change password' }));
+    expect((await screen.findAllByText('Your current password is incorrect.', {}, { timeout: 15000 })).length).toBeGreaterThan(0);
+    await user.clear(pw.getByLabelText('Current password'));
+    await user.type(pw.getByLabelText('Current password'), PASSWORD);
+    await user.click(pw.getByRole('button', { name: 'Change password' }));
+    expect(await screen.findByText(/Password changed\./, {}, { timeout: 15000 })).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: /Sign out/ })[0]!);
+    await screen.findByRole('heading', { name: 'Welcome back' });
+    await user.type(screen.getByLabelText('Email'), email);
+    await user.type(screen.getByLabelText('Password'), PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('alert', {}, { timeout: 15000 })).toHaveTextContent('Incorrect email or password.');
+    await user.clear(screen.getByLabelText('Password'));
+    await user.type(screen.getByLabelText('Password'), newPassword);
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    await screen.findByRole('heading', { name: 'Settings', level: 1 }, { timeout: 15000 }); // sign-in returns to where the session ended
+    expect(document.documentElement.dataset.theme).toBe('light'); // the saved theme came back with the new session
+
+    // deletion: password + typed email, then the account is really gone
+    await user.click((await section('Delete account')).getByRole('button', { name: 'Delete account…' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    await user.type(dialog.getByLabelText('Your password'), newPassword);
+    await user.type(dialog.getByLabelText(/to confirm/), email);
+    await user.click(dialog.getByRole('button', { name: 'Delete my account forever' }));
+    expect(await screen.findByRole('heading', { name: 'Welcome back' }, { timeout: 15000 })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('permanently deleted');
+    expect(jar.has('sc_sid')).toBe(false);
+    const gone = await pool.query('SELECT (SELECT count(*) FROM users WHERE email = $1)::int AS users, (SELECT count(*) FROM user_preferences)::int AS prefs_total', [email]);
+    expect(gone.rows[0].users).toBe(0);
+    await pool.end();
+  }, 120_000);
 });

@@ -1,4 +1,4 @@
-# SubCycle API reference (implemented so far, through Stage 7)
+# SubCycle API reference (implemented so far, through Stage 8)
 
 Conventions are in [SPEC.md §6.1](SPEC.md). This file records the **implemented contracts**; it grows each stage.
 Stage 3: auth (`/api/auth/*`, `/api/account/email-verification*`, `/api/health`; response shapes below). Stage 4: subscriptions. Stage 5: payments, price history, recurrence (all below).
@@ -173,15 +173,43 @@ Read-only. `bucket` defaults to `month`; `from` defaults to the first of the mon
 ### `POST /api/reminders/:id/dismiss` → `200 { data: Reminder }` · `404`
 Marks a delivered in-app reminder read. Idempotent. Any other reminder (pending, skipped, failed, email, or another user's) is `404`.
 
-## Preferences (Stage 7: reminder fields only)
+## Preferences (Stages 7-8)
 ### `GET /api/preferences` → `200 { data: Preferences }`
 ### `PATCH /api/preferences` → `200 { data: Preferences }`
-Strict body with at least one of `reminderLeadDays` (0-60), `reminderHour` (0-23), `inAppReminders`, `emailRemindersEnabled`, `trialRemindersEnabled`. `currency`, `theme` and `timezone` are rejected (`422`) until the Stage 8 settings page. A successful change immediately reconciles that user's planned reminders (best effort; the scheduler would do it anyway).
+Strict body (unknown keys, including `userId`/`email`, are `422`) with at least one of:
+
+| Field | Rule |
+|---|---|
+| `currency` | one of the supported ISO codes (`CURRENCY_CODES`). Default for new subscriptions and the order of per-currency totals. **Never converts, rewrites or combines anything.** |
+| `timezone` | a named IANA zone known to the runtime (`Asia/Kolkata`, `America/Argentina/Buenos_Aires`, old aliases such as `Asia/Calcutta`, `UTC`). Fixed offsets (`+05:30`), abbreviations (`EST`) and POSIX rules are refused. Changes what "today" is for every date calculation; stored dates, payments and amounts are never rewritten. |
+| `theme` | `dark`, `light` or `system`. Stored on the account (not in browser storage) and returned with every session payload. |
+| `reminderLeadDays` 0-60, `reminderHour` 0-23, `inAppReminders`, `emailRemindersEnabled`, `trialRemindersEnabled` | as in Stage 7 |
+
+When `timezone` or any reminder field changes, that user's reminders are reconciled immediately (best effort; the scheduler is the safety net): pending rows move or are superseded in place, nothing is duplicated, and nothing is marked sent. Saving the same value again, or a theme/currency-only change, leaves reminders untouched.
+
+## Health (Stage 9)
+### `GET /api/health` → `200 { data: { status: "ok" } }`
+Liveness: no database access, no session, no CSRF header needed.
+### `GET /api/health/ready` → `200 { data: { status: "ok", database: "ok" } }` · `503 { error: { code: "NOT_READY", message: "The service is not ready." } }`
+Readiness: runs `SELECT 1`. The 503 body is fixed and never says why.
 
 ## Scheduler (Stage 7)
 There is no HTTP surface. The scheduler runs inside the API process; see `docs/OPERATIONS.md` for tasks, locking, retries and guarantees.
 
-## Account email verification
+## Account (Stage 8)
+All routes need a session and the CSRF header; the user id always comes from the session.
+
+### `PATCH /api/account` → `200 { data: { user } }`
+`{ displayName }` (1-80 chars, trimmed). The email address cannot be changed in v1.
+
+### `POST /api/account/password` → `200 { data: { changed: true, otherSessionsSignedOut: n } }`
+`{ currentPassword, newPassword }`. New password: 10-128 characters, not on the common list, not containing the email, and different from the current one (same policy as registration). Errors: `422` field errors `currentPassword` ("Your current password is incorrect.", deliberately **not 401**, which the web app reads as "session ended") or `newPassword`; `409 PASSWORD_CHANGED` if another request changed the password at the same moment; `429` after repeated wrong passwords.
+**Sessions:** every session of the user is deleted, **including the one that made the request**, and a brand-new session is created in the same transaction; its cookie is returned. The old cookie can never be replayed (no session fixation) and every other device must sign in again. If any step fails, the whole change rolls back (old password and old sessions remain).
+
+### `DELETE /api/account` → `204`
+Body `{ password, confirmEmail }` (a DELETE with a JSON body). The password re-authenticates the request and the email (case-insensitive) must be the account's own address: `422` field errors `password` / `confirmEmail` otherwise; `429` after repeated wrong passwords (shares the budget with password change). One transaction deletes the sessions and the `users` row; preferences, subscriptions, payments, price history, reminders and verification tokens go with it through `ON DELETE CASCADE`. The response clears the cookie. On any failure nothing is deleted and the user stays signed in.
+
+### Email verification
 `POST /api/account/email-verification` (session; `503` when no SMTP is configured, `429` inside the resend cooldown, `409` already verified) and `POST /api/account/email-verification/confirm` (`{ token }`, single use, no session needed).
 
 ## Errors specific to these stages

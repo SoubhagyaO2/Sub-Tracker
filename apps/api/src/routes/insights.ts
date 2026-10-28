@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { analyticsQuerySchema, calendarQuerySchema, listRemindersQuerySchema, updateReminderPreferencesSchema } from '@subcycle/shared';
+import { analyticsQuerySchema, calendarQuerySchema, listRemindersQuerySchema, updatePreferencesSchema } from '@subcycle/shared';
 import { loadPreferences } from '../auth/dto.js';
 import type { AppDeps } from '../deps.js';
 import { requireAuth } from '../middleware/session.js';
 import { getAnalytics } from '../services/analytics.js';
 import { getCalendar } from '../services/calendar.js';
-import { updateReminderPreferences } from '../services/preferences.js';
+import { updatePreferences } from '../services/preferences.js';
 import { dismissReminder, listReminders, reconcileUserReminders } from '../services/reminders.js';
 import { todayForUser } from '../today.js';
 
@@ -56,10 +56,11 @@ export function insightsRouters(deps: AppDeps) {
     res.json({ data: await loadPreferences(pool, req.auth!.userId) });
   });
   preferences.patch('/', async (req, res) => {
-    const patch = updateReminderPreferencesSchema.parse(req.body ?? {});
-    const updated = await updateReminderPreferences(pool, req.auth!.userId, patch);
+    const patch = updatePreferencesSchema.parse(req.body ?? {});
+    const updated = await updatePreferences(pool, req.auth!.userId, patch);
     // Show the effect straight away instead of at the next scheduler pass. Best effort: the scheduler is the safety net.
-    try {
+    const affectsReminders = ['timezone', 'reminderLeadDays', 'reminderHour', 'inAppReminders', 'emailRemindersEnabled', 'trialRemindersEnabled'].some((k) => k in patch);
+    if (affectsReminders) try {
       await reconcileUserReminders({ pool, clock, mailer }, req.auth!.userId);
     } catch (err) {
       logger?.warn({ event: 'reminder_reconcile_after_preferences_failed', errorName: (err as Error).name, errorCode: (err as { code?: string }).code }, 'reconcile failed; the scheduler will retry');

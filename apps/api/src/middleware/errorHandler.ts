@@ -38,8 +38,10 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     }
   }
 
-  if (status >= 500) req.log?.error({ err }, 'unhandled error');
+  // Server errors: log sanitized diagnostics under the request id; tell the client only the id (never the cause).
+  const requestId = typeof (req as { id?: unknown }).id === 'string' ? (req as { id: string }).id : undefined;
+  if (status >= 500) req.log?.error({ event: 'request_failed', status, err }, 'request failed');
   if (!res.headersSent) {
-    res.status(status).json({ error: { code, message, ...(details ? { details } : {}) } });
+    res.status(status).json({ error: { code, message, ...(details ? { details } : {}), ...(status >= 500 && requestId ? { requestId } : {}) } });
   }
 };

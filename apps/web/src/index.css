@@ -115,7 +115,7 @@
     border-radius: 0.375rem;
   }
   a {
-    @apply text-accent-text underline-offset-2;
+    @apply text-accent-text underline underline-offset-2; /* links never rely on colour alone (WCAG 1.4.1); components that are not text links opt out with no-underline */
   }
   ::placeholder {
     color: var(--subtle);
