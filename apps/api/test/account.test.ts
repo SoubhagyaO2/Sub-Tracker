@@ -378,9 +378,9 @@ describe('password confirmation attempts are rate limited per user (failures onl
 
 // ───────────────────────────── account deletion ─────────────────────────────
 
-const TABLES = ['user_preferences', 'sessions', 'subscriptions', 'payments', 'subscription_price_history', 'reminders', 'email_verification_tokens', 'subscription_icon_images'] as const;
+const TABLES = ['user_preferences', 'sessions', 'subscriptions', 'payments', 'subscription_price_history', 'reminders', 'email_verification_tokens', 'password_reset_tokens', 'subscription_icon_images'] as const;
 const FK_USER: Record<string, string> = {
-  user_preferences: 'user_id', sessions: 'user_id', subscriptions: 'user_id', payments: 'user_id', subscription_price_history: 'user_id', reminders: 'user_id', email_verification_tokens: 'user_id', subscription_icon_images: 'user_id',
+  user_preferences: 'user_id', sessions: 'user_id', subscriptions: 'user_id', payments: 'user_id', subscription_price_history: 'user_id', reminders: 'user_id', email_verification_tokens: 'user_id', password_reset_tokens: 'user_id', subscription_icon_images: 'user_id',
 };
 
 /** Gives a user one of everything that can hang off an account. */
@@ -394,6 +394,10 @@ async function fill(ck: string, id: string) {
   if (upload.status !== 200) throw new Error(`picture upload failed: ${upload.status}`);
   await pool.query(
     "INSERT INTO email_verification_tokens (user_id, email, token_hash, expires_at, created_at) VALUES ($1, 'x@example.com', decode(md5(random()::text) || md5(random()::text), 'hex'), now() + interval '1 day', now())",
+    [id],
+  );
+  await pool.query(
+    "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at) VALUES ($1, decode(md5(random()::text) || md5(random()::text), 'hex'), now() + interval '1 hour', now())",
     [id],
   );
   await runSchedulerCycle(env); // reminders

@@ -102,7 +102,12 @@ Before relying on email reminders, configure SMTP, verify an address, and send o
 - **Logs:** deletion and password change are logged as `account_deleted` / `password_changed` with the user id only (and a session count for the latter). Passwords, hashes, tokens and the email address are never logged (tested by capturing logs).
 - **Password change revokes every session** (including the caller's, which is replaced). After a suspected compromise: change the password in the app; all other devices are signed out immediately.
 - **Rate limits** on failed password confirmations (`rateLimit.loginPerEmailMax` failures per `authWindowMs`, per user) are in process memory: per instance, reset on restart (same single-instance caveat as login limits above).
-- **No password reset by email** exists in v1: a user who forgets their password and has no session cannot recover the account. An operator would have to intervene in the database.
+- **Account recovery.** With an email provider configured, users reset their own password from the sign-in page ("Forgot your password?"). **Without one** (the default), the page tells them it is unavailable and an operator issues a one-time link instead:
+  ```bash
+  npm run admin:reset-link -- person@example.com            # from a source checkout (uses .env)
+  node apps/api/dist/cli/resetLink.js person@example.com    # from a built deployment (needs DATABASE_URL and APP_URL in the environment)
+  ```
+  It prints a link valid for one hour that works once (a new link invalidates the old one). Send it only to the account's owner over a channel you trust; whoever has it can set that account's password. Setting the password signs the account out everywhere. The command exits with an error if no account has that address. Nothing in the logs contains the token.
 
 ## Process behaviour and production settings (Stage 9)
 

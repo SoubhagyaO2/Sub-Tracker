@@ -18,7 +18,15 @@ What is enforced today and where. Stage references are to the build stages; see 
 - A wrong current password on these routes returns **422 with a field error, never 401**: the caller is already authenticated, the answer says nothing about any other account, and the web client does not mistake it for an ended session.
 - Failed confirmations are limited per user (successes are not counted), so a stolen session cannot be used to guess the password. The counter is in memory (per instance).
 - Concurrent password changes: optimistic check on the stored hash; one wins, the other gets `409`.
-- No password reset by email in v1 (agreed scope).
+- Password reset is described in its own section below.
+
+## Password reset
+- **Tokens:** 256-bit random, only the SHA-256 is stored (`password_reset_tokens`, migration 0004), single use, valid for one hour, one live token per user (a newer request deletes the older), deleted with the user and tidied up opportunistically. Confirming uses a row lock, so two parallel requests cannot both succeed.
+- **No account enumeration:** the request endpoint answers the same `202` for known and unknown addresses; the email is sent after the response; the only variation is the server-wide `503` when email is not configured, which is the same for every address. Limits count requests per submitted address (hashed, never logged) and per client.
+- **Link hygiene:** the token is in the URL *fragment* (`/reset-password#token=...`), so it never reaches the API, a reverse-proxy access log or a `Referer`. The page reads it, removes it from the address bar and history (`replaceState`), and only then sends it, in a POST body, which the API does not log. The emails contain no other credential.
+- **On success:** the password is replaced, **all sessions are deleted** (an attacker with a stolen session loses it), all reset tokens are removed, nobody is signed in automatically, and a notice without a link is mailed. A refused password (policy) does not consume the link.
+- **Operators:** `admin:reset-link` needs the server's own database access and prints a link; treat it like a password and give it only to the account's owner. It is not available over the network.
+- **Limits:** whoever controls the account's email inbox can take the account (as with every email-based reset); there is no second factor. Email delivery has not been exercised against a real provider (see Known gaps).
 
 ## Data and logging
 - Every query is parameterised; ownership is part of every `WHERE`. A test pins the only places SQL text is composed.
@@ -50,5 +58,5 @@ This is the only place the server contacts an address a user typed, so it is bui
 ## Known gaps
 - Rate-limit counters are per process.
 - No automated browser security tests (CSP is configured on the API; Stage 9 is expected to add end-to-end coverage).
-- Email change, MFA and active-session listing are not implemented.
+- Email change, MFA and active-session listing are not implemented. (Password reset is implemented; see above.)
 - Email delivery has not been exercised against a real SMTP provider.

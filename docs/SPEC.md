@@ -21,9 +21,9 @@ Status: Stage 2 (design). Companion docs: [DATA_MODEL.md](DATA_MODEL.md), [DESIG
 Auth · dashboard · subscription CRUD · payments & price history · library with search/filter/sort · renewal calendar · in-app + optional email reminders · analytics · CSV export · settings · profile edit · account deletion.
 
 ### Out of scope (v1) — explicitly
-Bank/transaction import · automatic payment detection · real payments · acting on external services · FX conversion (see §4.4) · password reset by email · social login · multi-user/family sharing · mobile native apps · AI features · uploaded logo images.
+Bank/transaction import · automatic payment detection · real payments · acting on external services · FX conversion (see §4.4) · social login · multi-user/family sharing · mobile native apps · AI features · uploaded logo images.
 
-> **Known limitation — no password reset in v1.** It needs a working email provider, which is optional. Documented in README; a user who forgets their password must create a new account. Revisit in v1.1.
+> **Password reset (added after Stage 10).** "Forgot your password?" emails a one-hour, single-use link when an email provider is configured; without one the page says it is unavailable and the operator issues a link from the command line (`admin:reset-link`). See SECURITY.md and API.md. There is still no email change, multi-factor sign-in or session list.
 
 ## 3. Personas & core questions
 
@@ -291,5 +291,5 @@ Items marked *(addition)* extend the endpoint list in the brief to support state
 ## 9. Open items (need your call, none block Stage 3)
 1. **FX:** v1 shows per-currency totals, no conversion. OK?
 2. **Email verification** gating email reminders (§4.7) — accepted as proposed?
-3. **No password reset in v1** (§2) — acceptable?
+3. **No password reset in v1** (§2) — acceptable? *(Answered: added after Stage 10.)*
 4. **Icons:** bundled brand logos, emoji and letter tiles only (no URL/uploaded logos) in v1 (§4.11) — acceptable? *(Answered: yes for URLs; an optional uploaded picture was added after Stage 10, §4.11.)*
