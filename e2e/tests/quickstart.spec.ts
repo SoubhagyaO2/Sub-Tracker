@@ -70,12 +70,11 @@ test.describe('quick start: suggestions and pasted links', () => {
     }
   });
 
-  test('the suggestion list fits the screen and is accessible in both themes at 320px', async ({ page, signUp, api }) => {
+  test('the suggestion list fits the screen and is accessible at 320px', async ({ page, signUp }) => {
     await signUp();
     await page.setViewportSize({ width: 320, height: 700 });
     const problems: string[] = [];
-    for (const theme of ['dark', 'light'] as const) {
-      await api.patch('/api/preferences', { theme });
+    for (const theme of ['dark'] as const) {
       await page.goto('/subscriptions/new');
       await page.getByRole('combobox', { name: /Service name/ }).fill('a');
       const list = page.getByRole('listbox', { name: 'Suggested services' });
@@ -90,7 +89,7 @@ test.describe('quick start: suggestions and pasted links', () => {
 });
 
 test.describe('brand logos', () => {
-  test('a picked service shows its real logo on the detail page, the list and the dashboard, in both themes', async ({ page, signUp, api }) => {
+  test('a picked service shows its real logo on the detail page, the list and the dashboard,', async ({ page, signUp, api }) => {
     await signUp();
     await page.goto('/subscriptions/new');
     await page.getByRole('combobox', { name: /Service name/ }).fill('netf');
@@ -104,8 +103,7 @@ test.describe('brand logos', () => {
     // a service without a bundled logo gets a letter tile, not a made-up logo
     await api.post('/api/subscriptions', { name: 'Disney+', amountMinor: 29900, billingFrequency: 'monthly', category: 'video', nextBillingDate: ymd(6), icon: null });
 
-    for (const theme of ['dark', 'light'] as const) {
-      await api.patch('/api/preferences', { theme });
+    {
       for (const path of ['/subscriptions', '/']) {
         await page.goto(path);
         const logo = page.locator('[data-logo="netflix"]').first();

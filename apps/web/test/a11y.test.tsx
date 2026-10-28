@@ -248,7 +248,7 @@ describe('page structure and keyboard navigation', () => {
     expect(css).toMatch(/prefers-reduced-motion: reduce/);
     expect(css).toMatch(/:focus-visible\s*\{[^}]*outline: 2px solid var\(--focus\)/);
     // the exact palette from the approved visual direction (neutral dark with a coral accent)
-    for (const hex of ['#000000', '#1c1c1e', '#ff6a5c', '#f6f6f8', '#d4402c']) expect(css.toLowerCase()).toContain(hex);
+    for (const hex of ['#000000', '#1c1c1e', '#ff6a5c', '#f6f6f8']) expect(css.toLowerCase()).toContain(hex);
   });
 });
 

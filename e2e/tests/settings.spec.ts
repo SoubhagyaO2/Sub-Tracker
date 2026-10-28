@@ -2,48 +2,36 @@ import { NEW_PASSWORD, PASSWORD, expect, fillSignIn, sessionsOf, test, userExist
 import type { Page } from '@playwright/test';
 
 const card = (page: Page, name: string) => page.getByRole('heading', { name }).locator('xpath=ancestor::section[1]');
-const theme = (page: Page) => page.locator('html').getAttribute('data-theme');
-const background = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
 test.describe('preferences', () => {
-  test('theme, currency and time zone persist across reloads and apply on every route', async ({ page, signUp, api }) => {
+  test('there is no theme choice (the app is dark); currency and time zone persist across reloads and apply on every route', async ({ page, signUp, api }) => {
     await signUp();
     await page.goto('/settings');
-    const prefs = card(page, 'Appearance and region');
-    await expect(prefs.getByRole('radio', { name: 'Dark' })).toBeChecked();
-    expect(await theme(page)).toBe('dark');
-    const darkBackground = await background(page);
+    const prefs = card(page, 'Region');
+    await expect(prefs.getByRole('radio', { name: 'Light' })).toHaveCount(0);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-    await prefs.getByText('Light', { exact: true }).click();
     await prefs.getByLabel('Preferred currency').selectOption('USD');
     await prefs.getByLabel('Time zone').selectOption('Pacific/Kiritimati');
     await prefs.getByRole('button', { name: 'Save settings' }).click();
     await expect(page.getByText('Settings saved.')).toBeVisible();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    expect(await background(page)).not.toBe(darkBackground); // the colours really changed
 
     // Reload: everything comes back from the server, not from browser storage.
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    const again = card(page, 'Appearance and region');
-    await expect(again.getByRole('radio', { name: 'Light' })).toBeChecked();
+    const again = card(page, 'Region');
     await expect(again.getByLabel('Preferred currency')).toHaveValue('USD');
     await expect(again.getByLabel('Time zone')).toHaveValue('Pacific/Kiritimati');
     expect(await page.evaluate(() => window.localStorage.length + window.sessionStorage.length)).toBe(0);
 
-    // Every route uses the saved theme; the new-subscription form defaults to the preferred currency.
-    for (const path of ['/', '/calendar', '/analytics', '/reminders']) {
-      await page.goto(path);
-      await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    }
+    // The new-subscription form defaults to the preferred currency.
     await page.goto('/subscriptions/new');
     await expect(page.getByLabel('Currency')).toHaveValue('USD');
 
     // "Today" now follows the saved zone: UTC+14 is already a day ahead for part of every day.
     const expected = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Kiritimati' }).format(new Date());
     expect((await api.get('/api/calendar/renewals')).body.meta.today).toBe(expected);
-    expect((await api.get('/api/preferences')).body.data).toMatchObject({ theme: 'light', currency: 'USD', timezone: 'Pacific/Kiritimati' });
+    expect((await api.get('/api/preferences')).body.data).toMatchObject({ currency: 'USD', timezone: 'Pacific/Kiritimati' });
   });
 
   test('a saved currency or time-zone change never rewrites subscriptions or payments', async ({ page, signUp, addSub, api }) => {
@@ -52,7 +40,7 @@ test.describe('preferences', () => {
     await api.post(`/api/subscriptions/${sub.id}/payments`, { amountMinor: 64900, paidOn: new Date().toISOString().slice(0, 10) });
     const before = JSON.stringify([(await api.get(`/api/subscriptions/${sub.id}`)).body.data, (await api.get(`/api/subscriptions/${sub.id}/payments`)).body.data]);
     await page.goto('/settings');
-    const prefs = card(page, 'Appearance and region');
+    const prefs = card(page, 'Region');
     await prefs.getByLabel('Preferred currency').selectOption('JPY');
     await prefs.getByLabel('Time zone').selectOption('Pacific/Pago_Pago');
     await prefs.getByRole('button', { name: 'Save settings' }).click();
@@ -63,27 +51,13 @@ test.describe('preferences', () => {
     await expect(card(page, 'Monthly equivalent')).toContainText(/649\.00\s*INR/); // still rupees: nothing was converted
   });
 
-  test('"match my device" follows the browser colour scheme, in both directions', async ({ page, signUp }) => {
-    await signUp();
-    await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/settings');
-    await card(page, 'Appearance and region').getByText('Match my device').click();
-    await card(page, 'Appearance and region').getByRole('button', { name: 'Save settings' }).click();
-    await expect(page.getByText('Settings saved.')).toBeVisible();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-    await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  });
-
   test('invalid input is refused before and after the server', async ({ page, signUp, api }) => {
     await signUp();
     expect((await api.patch('/api/preferences', { timezone: 'EST' })).status).toBe(422);
     expect((await api.patch('/api/preferences', { currency: 'XXX' })).status).toBe(422);
     expect((await api.patch('/api/preferences', { theme: 'blue' })).status).toBe(422);
     await page.goto('/settings');
-    await card(page, 'Appearance and region').getByRole('button', { name: 'Save settings' }).click();
+    await card(page, 'Region').getByRole('button', { name: 'Save settings' }).click();
     await expect(page.getByText('You haven’t changed anything yet.')).toBeVisible();
   });
 });

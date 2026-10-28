@@ -200,7 +200,7 @@ Strict body (unknown keys, including `userId`/`email`, are `422`) with at least 
 |---|---|
 | `currency` | one of the supported ISO codes (`CURRENCY_CODES`). Default for new subscriptions and the order of per-currency totals. **Never converts, rewrites or combines anything.** |
 | `timezone` | a named IANA zone known to the runtime (`Asia/Kolkata`, `America/Argentina/Buenos_Aires`, old aliases such as `Asia/Calcutta`, `UTC`). Fixed offsets (`+05:30`), abbreviations (`EST`) and POSIX rules are refused. Changes what "today" is for every date calculation; stored dates, payments and amounts are never rewritten. |
-| `theme` | `dark`, `light` or `system`. Stored on the account (not in browser storage) and returned with every session payload. |
+| `theme` | `dark`, `light` or `system`. Kept for compatibility with existing accounts, but **the web app ignores it**: it is always dark and shows no theme setting. |
 | `reminderLeadDays` 0-60, `reminderHour` 0-23, `inAppReminders`, `emailRemindersEnabled`, `trialRemindersEnabled` | as in Stage 7 |
 
 When `timezone` or any reminder field changes, that user's reminders are reconciled immediately (best effort; the scheduler is the safety net): pending rows move or are superseded in place, nothing is duplicated, and nothing is marked sent. Saving the same value again, or a theme/currency-only change, leaves reminders untouched.
