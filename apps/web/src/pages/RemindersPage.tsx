@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import type { PreferencesDto, ReminderDto, ReminderStatus, SkipReason, UpdateReminderPreferencesInput } from '@subcycle/shared';
+import type { PreferencesDto, ReminderDto, ReminderStatus, SkipReason, UpdatePreferencesInput } from '@subcycle/shared';
 import { ApiError } from '../api/client';
 import { accountApi, preferencesApi, remindersApi, type ReminderListParams } from '../api/endpoints';
 import { Button } from '../components/ui/Button';
@@ -116,7 +116,7 @@ function Inbox() {
                   <p className="text-xs text-muted">{r.leadDays === 0 ? 'On the day' : `${r.leadDays} ${r.leadDays === 1 ? 'day' : 'days'} before`} · delivered {fmt(r.sentAt!)}</p>
                 </div>
                 {!r.readAt ? (
-                  <Button size="sm" loading={busyId === r.id} onClick={() => void dismiss(r)} aria-label={`Mark the reminder for ${r.subscriptionName} as read`}>
+                  <Button size="sm" loading={busyId === r.id} onClick={() => void dismiss(r)} aria-label={`Mark as read: reminder for ${r.subscriptionName}`}>
                     Mark as read
                   </Button>
                 ) : null}
@@ -250,7 +250,7 @@ function Settings() {
       setTimeout(() => focusFirstError(next), 0);
       return;
     }
-    const patch: UpdateReminderPreferencesInput = {};
+    const patch: UpdatePreferencesInput = {};
     if (leadN !== preferences.reminderLeadDays) patch.reminderLeadDays = leadN;
     if (Number(hour) !== preferences.reminderHour) patch.reminderHour = Number(hour);
     if (inApp !== preferences.inAppReminders) patch.inAppReminders = inApp;

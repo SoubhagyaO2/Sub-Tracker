@@ -9,3 +9,4 @@ playwright-report/
 test-results/
 .DS_Store
 .vitest/
+e2e/*.log

@@ -3,6 +3,7 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
+import { describeError } from './errorLog.js';
 import { createLogger } from './logger.js';
 import type { AppDeps } from './deps.js';
 import { csrfProtection } from './middleware/csrf.js';
@@ -32,6 +33,8 @@ export function createApp(deps: AppDeps): Express {
       },
       // Log method + path only: no headers, query string, or bodies.
       serializers: {
+        // pino-http installs its own full `err` serializer (message, stack, every property) unless told otherwise.
+        err: describeError,
         req: (req: { id: string; method: string; url: string }) => ({ id: req.id, method: req.method, url: req.url.split('?')[0] }),
         res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
       },
@@ -52,6 +55,16 @@ export function createApp(deps: AppDeps): Express {
 
   app.get('/api/health', (_req, res) => {
     res.json({ data: { status: 'ok' } });
+  });
+  // Readiness: can this instance reach its database? (Liveness above never touches it.) Reveals nothing about why it failed.
+  // Own rate-limit bucket: an anonymous flood must not be able to exhaust the connection pool through this route.
+  app.get('/api/health/ready', apiLimiter(config.rateLimit.apiWindowMs, config.rateLimit.apiMax), async (_req, res) => {
+    try {
+      await deps.pool.query('SELECT 1');
+      res.json({ data: { status: 'ok', database: 'ok' } });
+    } catch {
+      res.status(503).json({ error: { code: 'NOT_READY', message: 'The service is not ready.' } });
+    }
   });
 
   app.use('/api', csrfProtection(config));

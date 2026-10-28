@@ -26,19 +26,6 @@ export const MAX_REMINDER_ATTEMPTS = 5;
 /** Minutes to wait after the Nth failed attempt before the next one. */
 export const RETRY_BACKOFF_MINUTES = [5, 30, 120, 360] as const;
 
-// ───────────── preferences (reminder fields only; the rest arrives with the Stage 8 settings page) ─────────────
-
-export const updateReminderPreferencesSchema = z
-  .strictObject({
-    reminderLeadDays: z.number().int().min(0).max(60).optional(),
-    reminderHour: z.number().int().min(0).max(23).optional(),
-    inAppReminders: z.boolean().optional(),
-    emailRemindersEnabled: z.boolean().optional(),
-    trialRemindersEnabled: z.boolean().optional(),
-  })
-  .refine((o) => Object.values(o).some((v) => v !== undefined), { message: 'Provide at least one setting to update.' });
-export type UpdateReminderPreferencesInput = z.infer<typeof updateReminderPreferencesSchema>;
-
 // ───────────── list query ─────────────
 
 const csv = <T extends readonly [string, ...string[]]>(values: T) =>

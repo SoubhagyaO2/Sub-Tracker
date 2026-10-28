@@ -49,11 +49,11 @@ describe('reminders: inbox', () => {
     await screen.findByText('New');
     expect(inbox().getByText(/Netflix renews/)).toBeInTheDocument();
     expect(inbox().getByText(/3 days before/)).toBeInTheDocument();
-    await user.click(inbox().getByRole('button', { name: 'Mark the reminder for Netflix as read' }));
+    await user.click(inbox().getByRole('button', { name: 'Mark as read: reminder for Netflix' }));
     await waitFor(() => expect(inbox().queryByText('New')).not.toBeInTheDocument());
     expect(server.to('POST', '/api/reminders/r-a/dismiss')).toHaveLength(1);
     expect(server.last('POST', '/api/reminders/r-a/dismiss')!.headers.get('X-SubCycle-Client')).toBe('web');
-    expect(inbox().queryByRole('button', { name: /Mark the reminder/ })).not.toBeInTheDocument();
+    expect(inbox().queryByRole('button', { name: /Mark as read: reminder/ })).not.toBeInTheDocument();
   });
 
   it('the inbox only requests delivered in-app reminders', async () => {
@@ -80,7 +80,7 @@ describe('reminders: inbox', () => {
     const { server } = remindersServer([makeReminder({ id: 'r-b' })]);
     server.on('POST', '/api/reminders/:id/dismiss', fail(500, 'INTERNAL_ERROR', 'Something went wrong.'));
     const { user } = await openPage();
-    await user.click(await screen.findByRole('button', { name: /Mark the reminder for Netflix as read/ }));
+    await user.click(await screen.findByRole('button', { name: /Mark as read: reminder for Netflix/ }));
     expect(await screen.findByText('Something went wrong.')).toBeInTheDocument();
     expect(inbox().getByText('New')).toBeInTheDocument();
   });

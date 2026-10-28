@@ -24,9 +24,14 @@ interface AuthContextValue {
   refresh: () => Promise<void>;
   /** Replaces the preferences held in memory after a successful save. */
   setPreferences: (p: PreferencesDto) => void;
+  /** Replaces the user held in memory after a profile save. */
+  setUser: (u: UserDto) => void;
+  /** Leaves the signed-in state WITHOUT any request (the server session is already gone, e.g. after account deletion). */
+  endSessionLocally: (notice?: string) => void;
 }
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+export const ACCOUNT_DELETED_NOTICE = 'Your account and its data have been permanently deleted.';
 export const SESSION_ENDED_NOTICE = 'Your session has ended. Please sign in again.';
 
 const authed = (p: SessionPayload): AuthState => ({ status: 'authed', user: p.user, preferences: p.preferences, features: p.features });
@@ -78,9 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const setPreferences = useCallback((preferences: PreferencesDto) => setState((s) => (s.status === 'authed' ? { ...s, preferences } : s)), []);
 
+  const setUser = useCallback((user: UserDto) => setState((s) => (s.status === 'authed' ? { ...s, user } : s)), []);
+  const endSessionLocally = useCallback((notice?: string) => setState({ status: 'anon', notice }), []);
+
   const value = useMemo(
-    () => ({ state, login, register, logout, retry, refresh, setPreferences }),
-    [state, login, register, logout, retry, refresh, setPreferences],
+    () => ({ state, login, register, logout, retry, refresh, setPreferences, setUser, endSessionLocally }),
+    [state, login, register, logout, retry, refresh, setPreferences, setUser, endSessionLocally],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -112,4 +120,11 @@ export function useApplyTheme(theme: PreferencesDto['theme'] | undefined): void 
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, [theme]);
+}
+
+/** Keeps the document theme in step with the saved preference everywhere (signed-in pages and the sign-in pages alike). */
+export function ThemeSync(): null {
+  const { state } = useAuth();
+  useApplyTheme(state.status === 'authed' ? state.preferences.theme : 'dark');
+  return null;
 }

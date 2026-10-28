@@ -18,3 +18,4 @@ export const unauthorized = (message = 'Authentication required.') =>
   new AppError(401, 'UNAUTHENTICATED', message);
 export const notFound = (message = 'Not found.') => new AppError(404, 'NOT_FOUND', message);
 export const conflict = (code: string, message: string) => new AppError(409, code, message);
+export const validation = (details: ErrorDetail[]) => new AppError(422, 'VALIDATION_ERROR', 'Please check the highlighted fields.', details);
