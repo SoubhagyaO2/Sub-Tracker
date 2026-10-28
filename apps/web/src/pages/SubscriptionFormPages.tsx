@@ -1,9 +1,10 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { CATEGORIES, CURRENCY_CODES, FREQUENCIES, USAGE_LEVELS, isSupportedCurrency, serviceForHostname, type Category, type CurrencyCode, type LinkPreview, type ServiceTemplate, type SubscriptionDto } from '@subcycle/shared';
-import { linkPreviewApi, subscriptionsApi } from '../api/endpoints';
+import { iconImageApi, linkPreviewApi, subscriptionsApi } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { Button } from '../components/ui/Button';
+import { IconImageField } from '../components/IconImageField';
 import { ServiceNameField } from '../components/ServiceNameField';
 import { Card, ErrorState, LoadingRegion, Skeleton, EmptyState, ServiceIcon } from '../components/ui/display';
 import { CheckboxField, DateField, ErrorSummary, MoneyField, SegmentedField, SelectField, TextArea, TextField, focusFirstError } from '../components/ui/Field';
@@ -49,6 +50,7 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
   const set = <K extends keyof SubscriptionFormValues>(key: K, value: SubscriptionFormValues[K]) => setV((cur) => ({ ...cur, [key]: value }));
 
   // ── quick start: a suggestion from the built-in list, or a pasted link ──
+  const [pendingImage, setPendingImage] = useState<Blob | null>(null); // create mode: uploaded right after the subscription exists
   const [link, setLink] = useState('');
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -149,6 +151,13 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
       const saved = mode === 'create'
         ? await subscriptionsApi.create(built.payload as never)
         : await subscriptionsApi.update(original!.id, built.payload as never);
+      if (mode === 'create' && pendingImage) {
+        try {
+          await iconImageApi.upload(saved.id, pendingImage);
+        } catch {
+          toast({ kind: 'error', message: `Added ${saved.name}, but its picture couldn’t be saved. You can add it again from Edit.` });
+        }
+      }
       invalidate();
       toast({ kind: 'success', message: mode === 'create' ? `Added ${saved.name}.` : `Saved changes to ${saved.name}.` });
       onDone(saved);
@@ -304,6 +313,13 @@ function SubscriptionForm({ mode, initial, original, onDone, cancelTo }: FormPro
           </div>
           <div className="pt-7"><ServiceIcon subscription={{ name: v.name, category: v.category, icon: iconFromText(v.icon) }} /></div>
         </div>
+        <IconImageField
+          subscriptionId={mode === 'edit' ? original?.id : undefined}
+          currentUrl={mode === 'edit' && original?.icon?.kind === 'image' ? original.icon.value : null}
+          pending={pendingImage}
+          onPending={setPendingImage}
+          onChanged={invalidate}
+        />
       </Card>
 
       <Card aria-labelledby="remind-h" className="space-y-4">

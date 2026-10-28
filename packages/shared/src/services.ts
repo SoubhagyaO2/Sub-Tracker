@@ -63,17 +63,17 @@ export const SERVICE_CATALOG: readonly ServiceTemplate[] = [
   S('GeForce NOW', 'gaming', 'https://www.nvidia.com', 'nvidia', { aliases: ['nvidia'], hosts: [] }),
   S('Twitch', 'gaming', 'https://www.twitch.tv', 'twitch'),
   // productivity
-  S('Microsoft 365', 'productivity', 'https://www.microsoft.com', null, { aliases: ['office 365', 'office', 'microsoft'], hosts: [] }),
+  S('Microsoft 365', 'productivity', 'https://www.microsoft.com', 'microsoft-icon', { aliases: ['office 365', 'office', 'microsoft'], hosts: [] }),
   S('Google Workspace', 'productivity', 'https://workspace.google.com', null, { aliases: ['gsuite', 'g suite'] }),
   S('Notion', 'productivity', 'https://www.notion.so', 'notion'),
   S('Evernote', 'productivity', 'https://evernote.com', 'evernote'),
   S('Todoist', 'productivity', 'https://todoist.com', 'todoist'),
-  S('Slack', 'productivity', 'https://slack.com', null),
+  S('Slack', 'productivity', 'https://slack.com', 'slack-icon'),
   S('Zoom', 'productivity', 'https://zoom.us', 'zoom'),
   S('1Password', 'productivity', 'https://1password.com', '1password', { aliases: ['onepassword'] }),
   S('Bitwarden', 'productivity', 'https://bitwarden.com', 'bitwarden'),
   S('Canva', 'productivity', 'https://www.canva.com', null),
-  S('Adobe Creative Cloud', 'productivity', 'https://www.adobe.com', null, { aliases: ['adobe', 'photoshop', 'creative cloud'] }),
+  S('Adobe Creative Cloud', 'productivity', 'https://www.adobe.com', 'adobe-icon', { aliases: ['adobe', 'photoshop', 'creative cloud'] }),
   S('Figma', 'productivity', 'https://www.figma.com', 'figma'),
   S('GitHub', 'productivity', 'https://github.com', 'github', { aliases: ['github pro', 'github copilot', 'copilot'], hosts: [] }),
   // cloud storage
@@ -83,10 +83,10 @@ export const SERVICE_CATALOG: readonly ServiceTemplate[] = [
   S('Proton Drive', 'cloud_storage', 'https://proton.me', 'protondrive', { aliases: ['proton', 'proton mail'] }),
   S('pCloud', 'cloud_storage', 'https://www.pcloud.com', null),
   // AI tools
-  S('ChatGPT', 'ai_tools', 'https://chatgpt.com', null, { aliases: ['chatgpt plus', 'openai', 'gpt'], hosts: ['chatgpt.com', 'openai.com'] }),
+  S('ChatGPT', 'ai_tools', 'https://chatgpt.com', 'openai-icon', { aliases: ['chatgpt plus', 'openai', 'gpt'], hosts: ['chatgpt.com', 'openai.com'] }),
   S('Claude', 'ai_tools', 'https://claude.ai', 'claude', { aliases: ['claude pro', 'anthropic'], hosts: ['claude.ai', 'anthropic.com'] }),
   S('Perplexity', 'ai_tools', 'https://www.perplexity.ai', 'perplexity'),
-  S('Midjourney', 'ai_tools', 'https://www.midjourney.com', null),
+  S('Midjourney', 'ai_tools', 'https://www.midjourney.com', 'midjourney'),
   S('Google Gemini', 'ai_tools', 'https://gemini.google.com', 'googlegemini', { aliases: ['gemini', 'google ai pro'] }),
   S('Cursor', 'ai_tools', 'https://cursor.com', 'cursor'),
   // news and reading
@@ -98,7 +98,7 @@ export const SERVICE_CATALOG: readonly ServiceTemplate[] = [
   S('Substack', 'news_reading', 'https://substack.com', 'substack'),
   S('The Hindu', 'news_reading', 'https://www.thehindu.com', null, { aliases: ['hindu'] }),
   S('Times of India', 'news_reading', 'https://timesofindia.indiatimes.com', null, { aliases: ['toi'] }),
-  S('Everand', 'news_reading', 'https://www.everand.com', null, { aliases: ['scribd'], hosts: ['everand.com', 'scribd.com'] }),
+  S('Everand', 'news_reading', 'https://www.everand.com', 'scribd-icon', { aliases: ['scribd'], hosts: ['everand.com', 'scribd.com'] }),
   S('Kindle Unlimited', 'news_reading', 'https://www.amazon.com', null, { aliases: ['kindle'], hosts: [] }),
   // fitness and health
   S('Strava', 'fitness_health', 'https://www.strava.com', 'strava'),
@@ -114,7 +114,7 @@ export const SERVICE_CATALOG: readonly ServiceTemplate[] = [
   S('Udemy', 'education', 'https://www.udemy.com', 'udemy'),
   S('Skillshare', 'education', 'https://www.skillshare.com', 'skillshare'),
   S('MasterClass', 'education', 'https://www.masterclass.com', null),
-  S('LinkedIn Learning', 'education', 'https://www.linkedin.com/learning', null, { aliases: ['linkedin premium', 'linkedin'], hosts: [] }),
+  S('LinkedIn Learning', 'education', 'https://www.linkedin.com/learning', 'linkedin-icon', { aliases: ['linkedin premium', 'linkedin'], hosts: [] }),
   S('Brilliant', 'education', 'https://brilliant.org', null),
   // shopping and delivery
   S('Amazon Prime', 'shopping', 'https://www.amazon.com', null, { aliases: ['amazon', 'prime membership'], hosts: [] }),

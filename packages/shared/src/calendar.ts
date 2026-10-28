@@ -34,7 +34,7 @@ export interface CalendarSub {
   id: string;
   name: string;
   category: Category;
-  icon: { kind: 'glyph' | 'emoji'; value: string } | null;
+  icon: { kind: 'glyph' | 'emoji' | 'image'; value: string } | null;
   amountMinor: number;
   currency: CurrencyCode;
   billingFrequency: BillingFrequency;

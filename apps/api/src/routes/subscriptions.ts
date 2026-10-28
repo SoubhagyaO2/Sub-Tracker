@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import {
   createPaymentSchema,
   createSubscriptionSchema,
@@ -14,6 +14,9 @@ import {
 import { loadPreferences } from '../auth/dto.js';
 import type { AppDeps } from '../deps.js';
 import { requireAuth } from '../middleware/session.js';
+import { MAX_ICON_IMAGE_BYTES, checkIconImage, clearIconImage, getIconImage, setIconImage } from '../services/iconImages.js';
+import { assertValidId } from '../services/subscriptions.js';
+import { notFound } from '../errors.js';
 import { createPayment, deletePayment, listPayments, listPriceHistory } from '../services/payments.js';
 import { getUpcoming } from '../services/recurrence.js';
 import {
@@ -51,6 +54,36 @@ export function subscriptionsRouter(deps: AppDeps): Router {
     const input = createSubscriptionSchema.parse(req.body ?? {});
     const created = await createSubscription(pool, req.auth!.userId, input, await context(req.auth!.userId));
     res.status(201).json({ data: created });
+  });
+
+  // ── optional picture (instead of a built-in logo / emoji) ──
+  // The body is the raw image: Content-Type image/png | image/jpeg | image/webp, at most 40 KB (the web app shrinks pictures first).
+  const rawImage = express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: MAX_ICON_IMAGE_BYTES + 1024 });
+  router.put('/:id/icon-image', rawImage, async (req, res) => {
+    const upload = checkIconImage(req.body, req.get('content-type')?.split(';')[0]?.trim().toLowerCase());
+    const { today } = await context(req.auth!.userId);
+    res.json({ data: await setIconImage(pool, req.auth!.userId, req.params.id, upload, today) });
+  });
+  router.delete('/:id/icon-image', async (req, res) => {
+    const { today } = await context(req.auth!.userId);
+    res.json({ data: await clearIconImage(pool, req.auth!.userId, req.params.id, today) });
+  });
+  router.get('/:id/icon-image', async (req, res) => {
+    assertValidId(req.params.id);
+    const image = await getIconImage(pool, req.auth!.userId, req.params.id);
+    if (!image) throw notFound();
+    res
+      .status(200)
+      .set({
+        'Content-Type': image.type,
+        'Content-Length': String(image.data.length),
+        // The URL carries a version token, so a changed picture has a new URL and the old one can be cached for good (per user: "private").
+        'Cache-Control': 'private, max-age=31536000, immutable',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Content-Disposition': 'inline; filename="icon"',
+        'X-Content-Type-Options': 'nosniff',
+      })
+      .end(image.data);
   });
 
   router.get('/:id', async (req, res) => {

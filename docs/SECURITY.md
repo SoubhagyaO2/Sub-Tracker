@@ -41,6 +41,12 @@ This is the only place the server contacts an address a user typed, so it is bui
 - **Operational note:** the API host needs outbound HTTPS (port 443) for this feature. If egress is blocked the feature degrades to host-derived names; it never fails the form. A deployment that wants zero outbound requests can block egress; known services are still recognised locally.
 - **Limits:** this is a name lookup, not a security scanner. A malicious public site can return any title it likes; the UI shows it as a suggestion to check, and React renders it as plain text.
 
+## User-uploaded pictures (optional)
+- Only PNG, JPEG and WebP; **SVG is not accepted** (it can carry script). The server reads the file's own header to confirm the type matches the label and to read the pixel size (at most 1024 x 1024, at most 40 KB), rejecting anything else. The browser also re-encodes the picture to 128 x 128, which strips metadata and guarantees a plain raster image; the server never relies on that.
+- Stored in PostgreSQL, owner-only (`404` for anyone else, same as a missing subscription), deleted with the subscription / account.
+- Served from the same origin with `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, `Cache-Control: private` (so a shared cache never stores one user's picture), and a version token in the URL. The app's own CSP (`img-src 'self' data:`) is unchanged: pictures are same-origin and the in-form preview uses a `data:` URL (no `blob:`).
+- Users can upload an image that is offensive or infringes someone's rights; it is visible only to that user, so there is no moderation surface. If images ever become shareable, that changes.
+
 ## Known gaps
 - Rate-limit counters are per process.
 - No automated browser security tests (CSP is configured on the API; Stage 9 is expected to add end-to-end coverage).
