@@ -20,9 +20,10 @@ npm run dev:web        # Vite on :5173, proxies /api to :3001 (same origin: cook
 | `/calendar` | Renewal calendar: Month grid (keyboard-navigable) or the next 7/30/90 days; per-currency projected totals |
 | `/analytics` | Recorded spending (by month or week), recurring-cost estimate, projection windows; currency switch |
 | `/reminders` | Inbox (mark as read), reminder settings, delivery log with skip reasons |
+| `/settings` | Theme, preferred currency, time zone; reminder summary (links to `/reminders`); name and email status; change password; delete account |
 | `/verify-email?token=` | Landing page for the emailed verification link (public; the token is submitted once) |
 
-Everything except login/register requires a session; unauthenticated visits go to `/login` and return afterwards. Settings and export arrive in Stage 8 and are **not** linked (no dead navigation). `/verify-email` is public because the emailed token is the credential.
+Everything except login/register requires a session; unauthenticated visits go to `/login` and return afterwards. Settings is in the account menu and the desktop sidebar; export is a later stage and is **not** linked (no dead navigation). `/verify-email` is public because the emailed token is the credential.
 
 ## Authentication and storage
 The session is the server's httpOnly cookie. The app never reads, stores or sends a token: nothing is written to `localStorage`/`sessionStorage` (asserted in tests), requests use `credentials: 'same-origin'` and carry `X-SubCycle-Client: web` (the CSRF contract). Any 401 while signed in returns the user to `/login` with a plain "Your session has ended" notice; server error text is never shown for it.
@@ -48,8 +49,16 @@ No Radix UI, lucide or Recharts: dialogs are a small custom component, icons are
 - **Analytics** keeps three cards (Recorded / Recurring-cost estimate / Coming up) with their labels; a currency selector appears only when more than one currency exists.
 - Every new screen has loading, empty, error-with-retry states and an axe scan in the test suite.
 
+## Stage 8: settings behaviour worth knowing
+- **Theme** is stored on the account and applied by one component for every route, including the sign-in pages (which fall back to dark when signed out). Nothing is written to browser storage, so the first paint on a fresh load is dark until the session loads.
+- **Currency and time zone** copy says what they do and do not do (no conversion; stored dates and payments are not rewritten). The time-zone list comes from the browser's zone database plus the saved value, so an old alias stays selectable.
+- **Password change** keeps the user signed in (the server swaps the session cookie); the result says how many other sessions were signed out.
+- **Delete account** is a dialog that states the consequences (including backups and that providers are not cancelled), needs the password and the typed email, cannot be dismissed while running, and on success leaves the app **without any further request**, landing on the sign-in page with a notice.
+
+## Stage 9: verified in a real browser
+The production build is exercised by the Playwright suite (see [TESTING.md](TESTING.md)) under a strict Content-Security-Policy, in both themes at 320 / 390 / 820 / 1280 px: no horizontal overflow, axe-core (including colour contrast, which jsdom cannot measure) clean on every page and dialog, keyboard/focus behaviour asserted. Defects it found and that were fixed: links relied on colour alone (links are now underlined unless a component opts out), and the "Mark as read" button's accessible name did not contain its visible text.
+
 ## Known limitations
 - List filters/sorts that use the saved billing date lag until the next scheduler cycle rolls them forward (at most `SCHEDULER_INTERVAL_SECONDS`, default 5 minutes, while the API runs); the per-row effective date is always exact.
-- Verified in jsdom (unit/component/integration, including a run against the real API and PostgreSQL) and spot-checked in a real Chromium at 320, 390, 820 and 1280 px. **There is no automated real-browser suite yet**; Playwright is planned for Stage 9.
-- Theme preference (dark/light/system) is applied but cannot be changed in the UI until the Stage 8 settings page.
+- Verified in jsdom (unit/component/integration, including a run against the real API and PostgreSQL) and by the Playwright suite in Chromium only. Not tested: Firefox, WebKit, real mobile devices, screen readers (no manual assistive-technology pass has been done).
 - Date inputs use the browser's native picker, so their text format follows the browser locale.

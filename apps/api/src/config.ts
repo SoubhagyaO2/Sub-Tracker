@@ -7,6 +7,8 @@ export interface SmtpConfig {
   host: string;
   port: number;
   secure: boolean;
+  /** With `secure` false (STARTTLS ports), refuse to continue unless the connection upgrades to TLS: no cleartext credentials or mail. */
+  requireTls: boolean;
   user?: string;
   pass?: string;
   from: string;
@@ -23,6 +25,8 @@ export interface Config {
   logLevel: string;
   /** null => email is disabled; features depending on it report "unavailable". */
   smtp: SmtpConfig | null;
+  /** Production settings that are allowed but probably not what the operator wants; logged once at start-up. */
+  warnings: string[];
   session: {
     cookieName: string;
     idleMs: number;
@@ -62,6 +66,7 @@ const EnvSchema = z.object({
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
   SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+  SMTP_REQUIRE_TLS: z.enum(['true', 'false']).default('true'),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
@@ -96,6 +101,33 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
   if (isProd && !e.APP_URL.startsWith('https://')) {
     throw new Error('APP_URL must be https in production');
   }
+  const warnings: string[] = [];
+  if (isProd && e.SMTP_REQUIRE_TLS === 'false') throw new Error('SMTP_REQUIRE_TLS=false is not allowed in production: mail and credentials must not travel in cleartext');
+  if (isProd) {
+    // Unsafe defaults that must never reach production.
+    for (const o of corsOrigins) {
+      if (!o.startsWith('https://')) throw new Error(`CORS origin "${o}" must be https in production`);
+    }
+    for (const u of [e.APP_URL, ...corsOrigins]) {
+      if (/^https:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(u)) throw new Error(`"${u}" points at this machine: set the real public URL in production`);
+    }
+    let db: URL;
+    try {
+      db = new URL(e.DATABASE_URL);
+    } catch {
+      throw new Error('DATABASE_URL is not a valid URL');
+    }
+    if (decodeURIComponent(db.username) === 'subcycle' && decodeURIComponent(db.password) === 'subcycle') {
+      throw new Error('DATABASE_URL uses the documented development credentials (subcycle/subcycle): create a dedicated database user with a generated password');
+    }
+    if (!db.password) throw new Error('DATABASE_URL must include a password in production');
+    const ssl = db.searchParams.get('sslmode');
+    if (ssl === null || ssl === 'disable' || ssl === 'allow' || ssl === 'prefer') {
+      warnings.push('DATABASE_URL does not require TLS (set sslmode=require or verify-full) unless the database is reachable only over a private network');
+    }
+    if (e.TRUST_PROXY === 'false') warnings.push('TRUST_PROXY is false: behind a reverse proxy every client shares one IP, so rate limits apply to all users together');
+    if (e.LOG_LEVEL === 'debug' || e.LOG_LEVEL === 'trace') warnings.push(`LOG_LEVEL=${e.LOG_LEVEL} is noisy in production`);
+  }
 
   const smtpSet = [e.SMTP_HOST, e.SMTP_PORT, e.SMTP_FROM].filter((v) => v !== undefined).length;
   if (smtpSet !== 0 && smtpSet !== 3) {
@@ -107,6 +139,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
           host: e.SMTP_HOST!,
           port: e.SMTP_PORT!,
           secure: e.SMTP_SECURE === 'true',
+          requireTls: e.SMTP_REQUIRE_TLS === 'true',
           user: e.SMTP_USER,
           pass: e.SMTP_PASS,
           from: e.SMTP_FROM!,
@@ -129,6 +162,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
     trustProxy,
     logLevel: e.LOG_LEVEL,
     smtp,
+    warnings,
     session: {
       // The __Host- prefix requires Secure + Path=/ + no Domain, so it is only used in production (https).
       cookieName: isProd ? '__Host-sc_sid' : 'sc_sid',

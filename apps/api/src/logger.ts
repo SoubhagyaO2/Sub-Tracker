@@ -1,6 +1,7 @@
 import type { Writable } from 'node:stream';
 import { pino, type Logger } from 'pino';
 import type { Config } from './config.js';
+import { describeError } from './errorLog.js';
 
 export type { Logger };
 
@@ -13,6 +14,8 @@ export function createLogger(config: Pick<Config, 'logLevel'>, destination?: Wri
   return pino(
     {
       level: config.logLevel,
+      // Whatever is logged under `err` / `error` anywhere (including pino-http) is reduced to non-data fields.
+      serializers: { err: describeError, error: describeError },
       redact: {
         paths: [
           'req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]',

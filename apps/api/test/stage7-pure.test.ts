@@ -11,7 +11,7 @@ import {
   listRemindersQuerySchema,
   planReminders,
   renewalTotals,
-  updateReminderPreferencesSchema,
+  updatePreferencesSchema,
   zonedInstant,
   type CalendarSub,
   type ReminderPrefs,
@@ -200,9 +200,9 @@ describe('request schemas', () => {
     for (const bad of [{ channel: 'sms' }, { status: 'done' }, { unread: 'false' }, { pageSize: '101' }, { userId: 'x' }, { status: '' }]) {
       expect(listRemindersQuerySchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
     }
-    expect(updateReminderPreferencesSchema.safeParse({ reminderLeadDays: 0, reminderHour: 23, inAppReminders: false }).success).toBe(true);
-    for (const bad of [{}, { reminderLeadDays: 61 }, { reminderLeadDays: -1 }, { reminderLeadDays: 1.5 }, { reminderHour: 24 }, { theme: 'light' }, { timezone: 'UTC' }, { currency: 'USD' }, { emailRemindersEnabled: 'yes' }]) {
-      expect(updateReminderPreferencesSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    expect(updatePreferencesSchema.safeParse({ reminderLeadDays: 0, reminderHour: 23, inAppReminders: false }).success).toBe(true);
+    for (const bad of [{}, { reminderLeadDays: 61 }, { reminderLeadDays: -1 }, { reminderLeadDays: 1.5 }, { reminderHour: 24 }, { theme: 'blue' }, { timezone: 'EST' }, { currency: 'XXX' }, { emailRemindersEnabled: 'yes' }]) {
+      expect(updatePreferencesSchema.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
     }
   });
 });

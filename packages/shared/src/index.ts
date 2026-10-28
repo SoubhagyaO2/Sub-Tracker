@@ -1,3 +1,4 @@
+export * from './account.js';
 export * from './analytics.js';
 export * from './auth.js';
 export * from './calendar.js';

@@ -221,7 +221,7 @@ Navigation: bottom bar < 1024px (Home, Subscriptions, Calendar, Analytics, Profi
 | `GET /api/reminders`, `POST /api/reminders/:id/dismiss` | In-app tray and delivery status *(addition)* |
 | `GET /api/export/csv?type=subscriptions\|payments` | CSV download |
 | `GET /api/preferences`, `PATCH /api/preferences` | Preferences (reminder fields in Stage 7; the rest in Stage 8) |
-| `PATCH /api/account`, `POST /api/account/password`, `DELETE /api/account` | Profile, change password, delete account (password re-entry required) *(addition)* |
+| `PATCH /api/account`, `POST /api/account/password`, `DELETE /api/account` | Profile name, change password (current password required; revokes all sessions and issues a new one), delete account (password re-entry plus typed email) *(addition; implemented in Stage 8)* |
 | `POST /api/account/email-verification`, `POST /api/account/email-verification/confirm` | Only if SMTP configured *(addition)* |
 | `GET /api/health` | Liveness (no data) |
 
@@ -235,7 +235,7 @@ Items marked *(addition)* extend the endpoint list in the brief to support state
   - Cookie `sc_sid` (prod: `__Host-sc_sid`): `HttpOnly; SameSite=Lax; Secure` (prod); `Path=/`.
   - **Sliding idle expiry:** 14 days since last use (`last_seen_at` refreshed at most every 5 min to limit writes).
   - **Absolute expiry:** 30 days from creation, regardless of activity.
-  - Logout deletes the row. Password change, and account deletion, revoke all of the user's sessions. Session id is rotated on login.
+  - Logout deletes the row. Password change deletes **all** of the user's sessions (including the current one) and issues a fresh session in the same transaction; account deletion deletes all of them. Session id is rotated on login, registration and password change.
   - Expired sessions are purged by the scheduler.
 - **Storage trade-offs (documented in SECURITY section of README):** httpOnly cookies are not readable by injected scripts (unlike localStorage tokens), but cookie-bearing requests are CSRF-prone → mitigated below. A successful XSS can still make same-origin requests as the user, so XSS prevention (CSP, no unsafe HTML) remains required.
 - **CSRF:** SameSite=Lax; all state-changing routes are non-GET and additionally require `Content-Type: application/json` or a custom header `X-SubCycle-Client: web`, plus an `Origin` header check against the allowlist. GET routes never mutate.
@@ -255,7 +255,7 @@ Items marked *(addition)* extend the endpoint list in the brief to support state
 
 ### 7.3 Data lifecycle
 - **Export:** CSV of the user's subscriptions and, separately, payments (§ DATA_MODEL for columns). UTF-8 with BOM for Excel compatibility.
-- **Account deletion:** requires password re-entry; in one transaction hard-deletes the user row, and `ON DELETE CASCADE` removes preferences, sessions, subscriptions, payments, price history, reminders, and verification tokens. No data is retained or anonymized-and-kept. Server logs contain no personal data (user id only) and rotate per host policy. Backups are outside application control and age out per the operator's retention schedule (documented).
+- **Account deletion:** requires password re-entry **and** the account email typed as an explicit confirmation; wrong attempts count against a per-user limit shared with password change. In one transaction deletes the sessions and hard-deletes the user row, and `ON DELETE CASCADE` removes preferences, sessions, subscriptions, payments, price history, reminders, and verification tokens. No data is retained or anonymized-and-kept. Server logs contain no personal data (user id only) and rotate per host policy. Backups are outside application control and are **not** purged by deletion: any backup taken before the deletion still contains the data until the operator's retention schedule expires it, and restoring such a backup would bring the account back (the operator must re-apply deletions). SubCycle ships no backup tooling and states no retention period. The web UI says this before the user confirms.
 - **Demo/sample data:** only through `npm run seed:demo`, which creates a single, clearly named demo account (`demo@subcycle.local`, display name "Demo (sample data)") and marks rows via that account only; never mixed with real user data and never run automatically.
 
 ## 8. Quality bar

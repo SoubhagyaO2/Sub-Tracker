@@ -29,6 +29,7 @@ export class SmtpMailer implements Mailer {
       host: smtp.host,
       port: smtp.port,
       secure: smtp.secure,
+      requireTLS: !smtp.secure && smtp.requireTls, // STARTTLS is mandatory, never opportunistic
       auth: smtp.user ? { user: smtp.user, pass: smtp.pass ?? '' } : undefined,
       // Bounded well below the scheduler's claim lease, so a hung server can't outlive the lease and cause a double send.
       connectionTimeout: 10_000,
