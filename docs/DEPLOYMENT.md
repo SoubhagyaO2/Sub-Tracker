@@ -83,7 +83,7 @@ Do these in order; do not skip a verification.
    [Install]
    WantedBy=multi-user.target
    ```
-   Run **exactly one** instance (do not enable it on two hosts, do not run a second copy to "deploy without downtime"). *Not verified:* this unit file, and graceful shutdown on a real `SIGTERM` (the logic exists; no test sends a signal).
+   Run **exactly one** instance (do not enable it on two hosts, do not run a second copy to "deploy without downtime"). *Verified in a Linux container (Node 24.15.0, pruned production tree, real PostgreSQL):* the API logs `shutting_down` and `scheduler_stopped` and exits with code **0** on both `SIGTERM` and `SIGINT`. *Verified:* the unit file passes `systemd-analyze verify` (syntax and paths only). *Not verified:* running under a real systemd (restart policy, `ProtectSystem=strict` sandboxing with your directory layout, `TimeoutStopSec`), and shutdown with a slow in-flight request.
 8. **Verify readiness locally on the host**, before the proxy forwards anything:
    ```bash
    curl -fsS http://127.0.0.1:3001/api/health        # {"data":{"status":"ok"}}
@@ -119,7 +119,7 @@ Requirements, whatever software you use:
 - Do not log query strings or request/response headers containing cookies (§6).
 - Optionally restrict access (decision 2).
 
-**Caddy** (not verified here; Caddy overwrites `X-Forwarded-For` from the connection by default and does not log credentials unless you enable `log_credentials`):
+**Caddy** (tested with Caddy 2.11.7 in a Linux container, using `localhost` and its internal CA instead of the public host name: the config validates; security headers, SPA fallback, the asset cache header, `X-Forwarded-For` overwritten with the connection address, and the access log shows `/verify-email?token=REDACTED`; not tested with a public certificate or in production. Caddy does not log credentials unless you enable `log_credentials`):
 ```
 app.example.com {
   encode zstd gzip
@@ -153,30 +153,35 @@ app.example.com {
 }
 ```
 
-**nginx** (not verified here):
+**nginx** (config tested with nginx 1.22 in a Linux container: syntax, headers on every response type, SPA fallback, asset caching, `X-Forwarded-For` overwrite, and a token-free access log; not tested with a public certificate or in production). Put the headers in a snippet and include it in the server **and in every `location` that sets its own `add_header`**, because nginx drops inherited `add_header` lines as soon as a `location` defines one:
+```
+# /etc/nginx/snippets/subcycle-headers.conf
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+add_header X-Content-Type-Options nosniff always;
+add_header Referrer-Policy no-referrer always;
+add_header X-Frame-Options DENY always;
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+```
 ```
 log_format subcycle '$remote_addr [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent';  # $uri has no query string
 server {
-  listen 443 ssl http2;  server_name app.example.com;
+  listen 443 ssl;  server_name app.example.com;      # add "http2 on;" on nginx >= 1.25.1
   # ssl_certificate / ssl_certificate_key ...
   access_log /var/log/nginx/subcycle.access.log subcycle;
   root /srv/subcycle/apps/web/dist;
-  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
-  add_header X-Content-Type-Options nosniff always;
-  add_header Referrer-Policy no-referrer always;
-  add_header X-Frame-Options DENY always;
-  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  include snippets/subcycle-headers.conf;
   location /api/ {
     proxy_pass http://127.0.0.1:3001;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;      # overwrite; NOT $proxy_add_x_forwarded_for
     proxy_set_header X-Forwarded-Proto $scheme;
   }
-  location /assets/ { add_header Cache-Control "public, max-age=31536000, immutable"; try_files $uri =404; }
-  location / { add_header Cache-Control "no-cache"; try_files $uri /index.html; }
+  location /assets/ { include snippets/subcycle-headers.conf; add_header Cache-Control "public, max-age=31536000, immutable"; try_files $uri =404; }
+  location / { include snippets/subcycle-headers.conf; add_header Cache-Control "no-cache"; try_files $uri /index.html; }
 }
+server { listen 80; server_name app.example.com; return 301 https://$host$request_uri; }
 ```
-(nginx: `add_header` inside a `location` replaces the server-level ones, so repeat the security headers there or use an `include`.)
+The API adds its own security headers to `/api/*` responses, so those responses carry two sets (the stricter combination applies); harmless. In nginx's log a SPA deep link is recorded as `/index.html` (internal redirect), so its path is not logged at all; the token cannot be either way.
 
 ## 5. Backups and restoration (NOT configured: this is the specification to implement)
 
@@ -215,7 +220,7 @@ server {
 - **Registration is open** unless you restrict access at the proxy.
 - **Reminders only run while the API runs;** after downtime, missed ones are recorded as missed, not sent late, and never treated as payments.
 - SubCycle tracks only what users type. It does not connect to banks or providers, cannot see real charges and cannot cancel anything.
-- No Firefox/WebKit testing, no manual screen-reader pass, no TLS-enforced database test, no managed-provider test, no Linux signal-handling test.
+- No Firefox/WebKit testing, no manual screen-reader pass, no TLS-enforced database test, no managed-provider test, no test under a real systemd or with in-flight requests during shutdown.
 
 ## 8. Deployment checklist (print this)
 

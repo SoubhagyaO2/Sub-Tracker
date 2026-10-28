@@ -52,7 +52,7 @@ Procedure: take a backup → deploy the new build → run migrations → start/r
 ## Health, shutdown, restarts
 
 - `GET /api/health`: liveness (no database access). `GET /api/health/ready`: runs `SELECT 1`; `503` with a fixed body when the database is unreachable. **Verified.**
-- `SIGTERM`/`SIGINT`: stop accepting connections, close idle ones, let in-flight requests and a running scheduler cycle finish, close the pool, exit 0; a 15 s watchdog forces exit. (The code path exists; **no test sends a real signal**, and Windows cannot deliver `SIGTERM` gracefully, so it is unexercised.) `uncaughtException`/`unhandledRejection` log the error *class* only and exit 1 so a supervisor restarts the process. Run it under something that restarts it (systemd, Docker restart policy, a platform supervisor).
+- `SIGTERM`/`SIGINT`: stop accepting connections, close idle ones, let in-flight requests and a running scheduler cycle finish, close the pool, exit 0; a 15 s watchdog forces exit. (Verified on Linux in a Node 24.15.0 container: `SIGTERM` and `SIGINT` each log `shutting_down` and `scheduler_stopped` and exit 0. Not verified: a slow in-flight request during shutdown, the forced-exit watchdog, or the fatal-error exit path. Windows cannot deliver `SIGTERM` gracefully; production is expected to be Linux.) `uncaughtException`/`unhandledRejection` log the error *class* only and exit 1 so a supervisor restarts the process. Run it under something that restarts it (systemd, Docker restart policy, a platform supervisor).
 
 ## Scheduler and instances
 
